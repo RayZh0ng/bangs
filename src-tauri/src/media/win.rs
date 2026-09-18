@@ -19,6 +19,8 @@ const UNIX_EPOCH_TICKS: i64 = 116_444_736_000_000_000;
 const TICKS_PER_SECOND: f64 = 10_000_000.0;
 const POLL: Duration = Duration::from_secs(1);
 const MAX_ARTWORK_BYTES: u32 = 8 * 1024 * 1024;
+/// Polls (one per second) to keep asking a player for its artwork.
+const ARTWORK_ATTEMPTS: u8 = 20;
 
 #[derive(Default)]
 struct ArtworkCache {
@@ -90,15 +92,22 @@ fn read_session(
     let updated = timeline.LastUpdatedTime()?.UniversalTime;
     let duration = (end > start).then(|| (end - start) as f64 / TICKS_PER_SECOND);
 
-    // Players often publish the thumbnail a moment after the title, so retry a
-    // few polls before settling on "no artwork".
+    // Players often publish the thumbnail well after the title — some only
+    // once playback actually starts — so keep asking for a while.
     let track = format!("{source_id}\u{1f}{title}\u{1f}{artist}\u{1f}{album}");
     if artwork.track != track {
         *artwork = ArtworkCache { track, ..ArtworkCache::default() };
     }
-    if artwork.data_url.is_none() && artwork.attempts < 5 {
+    if artwork.data_url.is_none() && artwork.attempts < ARTWORK_ATTEMPTS {
         artwork.attempts += 1;
-        artwork.data_url = read_thumbnail(&properties).ok().flatten();
+        match read_thumbnail(&properties) {
+            Ok(Some(data_url)) => artwork.data_url = Some(data_url),
+            Ok(None) if artwork.attempts == ARTWORK_ATTEMPTS => {
+                eprintln!("[media] {source_id} sends no artwork for {title}");
+            }
+            Ok(None) => {}
+            Err(error) => eprintln!("[media] artwork read failed: {error}"),
+        }
     }
 
     Ok(Some(MediaState {
@@ -128,15 +137,36 @@ fn read_thumbnail(properties: &MediaProperties) -> windows::core::Result<Option<
     if size == 0 || size > MAX_ARTWORK_BYTES {
         return Ok(None);
     }
-    let content_type = stream.ContentType()?.to_string();
     let reader = DataReader::CreateDataReader(&stream)?;
-    reader.LoadAsync(size)?.get()?;
-    let mut bytes = vec![0u8; size as usize];
+    let loaded = reader.LoadAsync(size)?.get()?;
+    let mut bytes = vec![0u8; loaded as usize];
     reader.ReadBytes(&mut bytes)?;
+    if bytes.is_empty() {
+        return Ok(None);
+    }
 
-    let mime = if content_type.starts_with("image/") { content_type } else { "image/png".into() };
+    // The stream's own content type is often empty or something generic like
+    // application/octet-stream, and a data URL with the wrong type is simply
+    // not drawn, so the bytes decide.
+    let mime = sniff(&bytes).unwrap_or_else(|| {
+        let reported = stream.ContentType().map(|value| value.to_string()).unwrap_or_default();
+        if reported.starts_with("image/") { reported } else { "image/jpeg".into() }
+    });
     let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
     Ok(Some(format!("data:{mime};base64,{encoded}")))
+}
+
+/// The image type as the bytes themselves declare it.
+fn sniff(bytes: &[u8]) -> Option<String> {
+    let kind = match bytes {
+        [0x89, b'P', b'N', b'G', ..] => "image/png",
+        [0xFF, 0xD8, 0xFF, ..] => "image/jpeg",
+        [b'G', b'I', b'F', b'8', ..] => "image/gif",
+        [b'B', b'M', ..] => "image/bmp",
+        [b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P', ..] => "image/webp",
+        _ => return None,
+    };
+    Some(kind.to_string())
 }
 
 fn send_command(session: &Session, command: MediaCommand) -> windows::core::Result<()> {
