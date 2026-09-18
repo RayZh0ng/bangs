@@ -128,7 +128,7 @@ async function loadRelease() {
       WINDOWS,
       [document.querySelector("[data-download-win]"), document.querySelector("[data-win-link]")].filter(Boolean),
       document.querySelector("[data-win-meta]"),
-      "Windows 10 / 11",
+      "Windows 10 / 11 · 需要 WebView2",
     )(release);
 
     const note = document.querySelector("[data-download-note]");

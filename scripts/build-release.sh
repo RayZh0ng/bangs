@@ -34,10 +34,14 @@ if [[ $want_mac -eq 1 ]]; then
   echo "-- macOS --"
   pnpm tauri build --bundles app,dmg
   bundle="$root/src-tauri/target/release/bundle"
-  arch="$(uname -m)"
+  # Tauri's own name for the architecture; older bundles of other versions stay
+  # in that directory, so the file is named, never globbed.
+  arch="$([[ "$(uname -m)" == "arm64" ]] && echo aarch64 || echo x64)"
+  dmg="$bundle/dmg/Bangs_${version}_${arch}.dmg"
+  [[ -f "$dmg" ]] || { echo "没找到 $dmg" >&2; exit 1; }
   # A zipped .app is what people who dislike mounting a disk image want.
   ditto -c -k --keepParent "$bundle/macos/Bangs.app" "$out/Bangs_${version}_${arch}.app.zip"
-  cp "$bundle"/dmg/Bangs_*.dmg "$out/Bangs_${version}_${arch}.dmg"
+  cp "$dmg" "$out/Bangs_${version}_${arch}.dmg"
 fi
 
 if [[ $want_windows -eq 1 ]]; then
@@ -48,15 +52,17 @@ if [[ $want_windows -eq 1 ]]; then
   rm -f "$bundle"
   scp -q "$root/scripts/windows-build.ps1" "$host:D:/Develop/bangs-src/windows-build.ps1"
 
+  set +e
   ssh "$host" "powershell -NoProfile -ExecutionPolicy Bypass -File D:\\Develop\\bangs-src\\windows-build.ps1" |
     iconv -f utf-8 -t utf-8 -c | tail -20
+  built=${PIPESTATUS[0]}
+  set -e
+  [[ $built -eq 0 ]] || { echo "Windows 构建失败（退出码 $built），日志在 $host 的 D:\\Develop\\bangs-src\\build.log" >&2; exit 1; }
 
   for name in "Bangs_${version}_x64-setup.exe" "Bangs_${version}_x64_en-US.msi"; do
-    if scp -q "$host:D:/Develop/bangs-src/artifacts/$name" "$out/$name" 2>/dev/null; then
-      echo "取回 $name"
-    else
-      echo "缺少 $name（Windows 端没打出来）" >&2
-    fi
+    scp -q "$host:D:/Develop/bangs-src/artifacts/$name" "$out/$name" ||
+      { echo "缺少 $name（Windows 端没打出来）" >&2; exit 1; }
+    echo "取回 $name"
   done
 fi
 

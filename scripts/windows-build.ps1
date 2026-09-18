@@ -23,6 +23,11 @@ Set-Location "$src\repo"
 
 $log = "$src\build.log"
 "windows build $(Get-Date -Format s)" | Set-Content $log
+# The target directory is a cache that keeps old bundles; clearing them means
+# a failed build can never hand back the previous one as if it were fresh.
+Remove-Item "$env:CARGO_TARGET_DIR\release\bundle\nsis\*", "$env:CARGO_TARGET_DIR\release\bundle\msi\*",
+  "$src\artifacts\*" -Force -Recurse -ErrorAction SilentlyContinue
+
 cmd /c "pnpm install --frozen-lockfile >> $log 2>&1"
 cmd /c "pnpm tauri build --bundles nsis,msi >> $log 2>&1"
 $code = $LASTEXITCODE
@@ -30,7 +35,10 @@ Add-Content $log "exit=$code"
 Get-Content $log -Tail 12
 
 $bundle = "$env:CARGO_TARGET_DIR\release\bundle"
-Remove-Item "$src\artifacts\*" -Force -ErrorAction SilentlyContinue
+if ($code -ne 0) {
+  Write-Output "build failed with $code"
+  exit $code
+}
 Get-ChildItem -Path "$bundle\nsis\*.exe", "$bundle\msi\*.msi" -ErrorAction SilentlyContinue |
   ForEach-Object {
     Copy-Item $_.FullName "$src\artifacts\" -Force
