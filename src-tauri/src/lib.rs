@@ -62,6 +62,11 @@ fn set_hit_rect(app: AppHandle, width: f64, height: f64) {
 }
 
 #[tauri::command]
+fn set_cursor(app: AppHandle, shape: String) {
+    platform::set_cursor(&app, &shape);
+}
+
+#[tauri::command]
 fn media_command(hub: State<MediaHub>, command: MediaCommand) -> Result<(), String> {
     hub.send(command)
 }
@@ -113,6 +118,7 @@ pub fn run() {
             bootstrap,
             notch_ready,
             set_hit_rect,
+            set_cursor,
             media_command,
             dev::open_project,
             clipboard::clipboard_use,

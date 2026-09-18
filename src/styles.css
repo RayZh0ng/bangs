@@ -58,7 +58,29 @@ img {
   -webkit-user-drag: none;
 }
 
-/* Hover styles use [data-hover] instead of :hover; see src/lib/hover.ts. */
+/* Hover styles use [data-hover] instead of :hover; see src/lib/hover.ts.
+   The cursor is mirrored natively from these rules, so anything that reacts
+   to a click says so here. */
+.notch--compact,
+.tab,
+.icon-button,
+.control,
+.button,
+.link-button,
+.row,
+.tile__action,
+.progress {
+  cursor: pointer;
+}
+
+.tile {
+  cursor: grab;
+}
+
+button:disabled,
+.progress--empty {
+  cursor: default;
+}
 
 /* ---------- Notch shell ---------- */
 

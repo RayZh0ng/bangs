@@ -48,6 +48,9 @@ pub fn set_hit_region(app: &AppHandle, width: f64, height: f64, scale: f64) {
     }
 }
 
+/// WebView2 gets the mouse moves, so the stylesheet's own cursor applies.
+pub fn set_cursor(_app: &AppHandle, _shape: &str) {}
+
 pub fn set_window_visible(app: &AppHandle, visible: bool) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
         let _ = if visible { window.show() } else { window.hide() };

@@ -3,7 +3,7 @@ use std::ptr;
 
 use objc2::rc::Retained;
 use objc2::MainThreadMarker;
-use objc2_app_kit::NSScreen;
+use objc2_app_kit::{NSCursor, NSScreen};
 use tauri::{AppHandle, Manager, Monitor};
 use tauri_nspanel::{CollectionBehavior, ManagerExt, PanelLevel, StyleMask, WebviewWindowExt};
 
@@ -89,6 +89,22 @@ pub fn set_window_visible(app: &AppHandle, visible: bool) {
 
 /// macOS clips through the panel's transparent pixels on its own.
 pub fn set_hit_region(_app: &AppHandle, _width: f64, _height: f64, _scale: f64) {}
+
+/// Sets the mouse cursor. The panel never becomes key, so WKWebView is never
+/// asked to update the cursor itself and the webview tells us what it wants
+/// (see src/lib/hover.ts). Setting it sticks until the pointer moves over
+/// another app's window, which sets its own.
+pub fn set_cursor(app: &AppHandle, shape: &str) {
+    let shape = shape.to_string();
+    let _ = app.run_on_main_thread(move || {
+        let cursor = match shape.as_str() {
+            "pointer" => NSCursor::pointingHandCursor(),
+            "grab" => NSCursor::openHandCursor(),
+            _ => NSCursor::arrowCursor(),
+        };
+        cursor.set();
+    });
+}
 
 /// Global cursor position in points, top-left origin of the main display.
 pub fn cursor_position() -> Option<(f64, f64)> {
