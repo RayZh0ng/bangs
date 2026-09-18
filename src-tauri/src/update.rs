@@ -8,10 +8,8 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
 
-/// The repository releases are published from.
-pub const REPO: &str = "gxlself/bangs";
-const API: &str = "https://api.github.com/repos/gxlself/bangs/releases/latest";
-pub const RELEASES_PAGE: &str = "https://github.com/gxlself/bangs/releases/latest";
+/// The repository releases are published from; every URL here derives from it.
+const REPO: &str = "gxlself/bangs";
 /// This build, from Cargo.toml — which the release script keeps in step with
 /// package.json and tauri.conf.json.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -48,7 +46,8 @@ pub fn menu_label(app: &AppHandle) -> String {
 /// Clicking that entry opens the release page — downloads are manual, so the
 /// app never replaces itself behind the user's back.
 pub fn open_releases(app: &AppHandle) {
-    if let Err(error) = app.opener().open_url(RELEASES_PAGE, None::<&str>) {
+    let page = format!("https://github.com/{REPO}/releases/latest");
+    if let Err(error) = app.opener().open_url(page, None::<&str>) {
         eprintln!("[update] could not open the release page: {error}");
     }
 }
@@ -84,7 +83,7 @@ fn fetch() -> Option<String> {
         .build()
         .ok()?;
     let response = client
-        .get(API)
+        .get(format!("https://api.github.com/repos/{REPO}/releases/latest"))
         .header("Accept", "application/vnd.github+json")
         .send()
         .and_then(|response| response.error_for_status())

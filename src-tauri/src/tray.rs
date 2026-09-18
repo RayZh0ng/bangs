@@ -53,7 +53,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &PredefinedMenuItem::separator(app)?,
             &CheckMenuItem::with_id(app, "autostart", "开机启动", true, autostart, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "version", &update::menu_label(app), true, None::<&str>)?,
+            &MenuItem::with_id(app, "version", update::menu_label(app), true, None::<&str>)?,
             &MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?,
         ],
     )
