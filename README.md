@@ -4,6 +4,10 @@ A dynamic notch for macOS and Windows, built with Tauri 2 + React by gxlself
 (bundle id `com.gxlself.bangs`). It sits at the top center of the screen, shows live activity next to
 the notch, and expands on hover.
 
+**[Download](https://github.com/gxlself/bangs/releases/latest)** ·
+**[bangs site](https://gxlself.github.io/bangs/)** — neither build is code signed, so macOS wants
+"Open anyway" in Privacy & Security the first time and Windows SmartScreen wants "Run anyway".
+
 - **Now playing**: artwork, progress and play/pause/skip/seek for the current system media session,
   with timed lyrics — the line being sung shows next to the collapsed notch, three lines in the panel
 - **File shelf**: drop files on the notch to park them, drag them back out to other apps
@@ -30,7 +34,23 @@ pnpm tauri build          # .app/.dmg on macOS, .msi/.exe on Windows
 
 Build each platform on that platform (Windows installers cannot be produced on macOS).
 
-The tray menu controls show/hide, expand on hover, idle bar, Claude alerts, display and launch at login.
+The tray menu — the menu bar icon on macOS, the notification area icon on Windows — controls
+show/hide, expand on hover, idle bar, lyrics, Claude alerts, display and launch at login. Its last
+entry is the version: it asks GitHub for the newest release at start-up and every six hours, says
+"有新版本 vX.Y.Z" when this build is behind, and opens the release page when clicked
+(`src-tauri/src/update.rs`). Nothing is ever downloaded or replaced without the user.
+
+## Release
+
+```bash
+scripts/version.sh 0.2.0        # one version across package.json, tauri.conf.json and Cargo.toml
+scripts/build-release.sh        # .dmg + .app.zip here, .exe + .msi over ssh on the Windows box
+scripts/publish-site.sh         # site/ to the gh-pages branch
+```
+
+`scripts/publish-release.md` has the full checklist, including what the asset names have to look
+like: both the site and the in-app check read the GitHub release, and the site picks the right
+download by file extension.
 
 Lyrics come from QQ Music's public lyric endpoint: only the track title and artist are sent, every
 result is cached under the app cache directory, and the tray menu can turn the lookup off entirely.
@@ -97,11 +117,16 @@ src-tauri/src/
   platform/{mac,win}.rs     window setup, cursor, notch metrics, editor launch, full-screen handling
   media/{mod,mac,win}.rs    shared media state and platform now-playing providers
   dev.rs                   read-only Claude/Codex/editor polling and project opening
-  lyrics.rs                lyric lookup, LRC parsing and the on-disk cache
+  lyrics/mod.rs            lyric lookup, LRC/QRC parsing and the on-disk cache
+  lyrics/qrc.rs            vendored QRC decrypter (per-character timings)
+  media/spotify.rs         Spotify over AppleScript, for what the session leaves out
+  update.rs                the newest GitHub release, for the tray
   clipboard/mod.rs         shared clipboard panel state and commands
   clipboard/mac.rs         read-only Paste store, copy and panel hand-off
   clipboard/win.rs         Bangs' own clipboard history
   shelf.rs                 file metadata, open/reveal, drag preview
   tray.rs, settings.rs      tray menu and persisted settings
+site/                      the landing page published to gh-pages
 scripts/generate-icons.swift  app/tray/drag icons (then `pnpm tauri icon src-tauri/icons/app-icon.png`)
+scripts/version.sh, build-release.sh, publish-site.sh, windows-build.ps1  release plumbing
 ```
