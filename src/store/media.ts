@@ -2,8 +2,12 @@ import { create } from "zustand";
 
 import { native, type MediaCommand, type MediaState } from "../lib/native";
 
-/** How long a paused track keeps its live activity in the compact notch. */
-const RECENT_MS = 3 * 60_000;
+/**
+ * How long a paused track keeps counting as live. Long enough that the notch
+ * can still resume what you paused a while ago, short enough that a player
+ * left open overnight does not sit in the strip forever.
+ */
+const RECENT_MS = 30 * 60_000;
 
 interface MediaStore {
   media: MediaState | null;
@@ -19,7 +23,10 @@ export const useMedia = create<MediaStore>((set, get) => ({
 
   update(next) {
     const previous = get().media;
-    const touched = previous?.playing || next?.playing;
+    // Seeing a track for the first time counts, even paused: at start-up the
+    // player may have been sitting paused for hours, and the panel still has
+    // to be able to show it — and start it again.
+    const touched = !!next && (next.playing || !previous || previous.playing);
     set({ media: next, lastActiveAt: touched ? Date.now() : get().lastActiveAt });
   },
 
