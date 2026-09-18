@@ -184,6 +184,7 @@ button:disabled,
 }
 
 .compact__art {
+  animation: art-in 0.45s var(--ease-out);
   width: 20px;
   height: 20px;
   border-radius: 5px;
@@ -290,10 +291,60 @@ button:disabled,
 }
 
 .compact__lyric {
+  --karaoke-sung: rgba(255, 255, 255, 0.96);
   max-width: 100%;
   color: rgba(255, 255, 255, 0.95);
   font-size: 12px;
-  animation: lyric-in 0.35s var(--ease-out);
+  animation: lyric-in 0.42s var(--ease-out);
+}
+
+/* Holds the outgoing line over the incoming one while it slides away. It
+   inherits the wing's alignment, which differs with and without a cutout. */
+.lyric-swap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: inherit;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  /* Long lines fade out at the edges instead of being cut off. */
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 7px, #000 calc(100% - 9px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 7px, #000 calc(100% - 9px), transparent);
+}
+
+.lyric-swap__out {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: inherit;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 12px;
+  white-space: nowrap;
+  animation: lyric-out 0.42s var(--ease-out) forwards;
+  pointer-events: none;
+}
+
+@keyframes lyric-out {
+  to {
+    opacity: 0;
+    transform: translateY(-9px);
+  }
+}
+
+@keyframes art-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
 }
 
 /* ---------- Expanded ---------- */
@@ -364,6 +415,7 @@ button:disabled,
 }
 
 .panel {
+  animation: panel-in 0.28s var(--ease-out);
   flex: 1;
   min-height: 0;
   padding: 8px 22px 18px;
@@ -419,6 +471,7 @@ button:disabled,
 }
 
 .music__art img {
+  animation: art-in 0.45s var(--ease-out);
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -470,7 +523,8 @@ button:disabled,
   height: 100%;
   border-radius: 2px;
   background: var(--text);
-  transition: width 0.5s linear;
+  /* The clock ticks four times a second; this carries the bar between ticks. */
+  transition: width 0.3s linear;
 }
 
 .progress__times {
@@ -689,26 +743,37 @@ button:disabled,
 }
 
 .lyrics {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  height: 62px;
+  /* Three rows tall, scrolled one row at a time; see LyricView. */
+  height: 60px;
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent);
+}
+
+.lyrics__scroll {
+  transition: transform 0.55s var(--ease-out);
+  will-change: transform;
 }
 
 .lyrics__line {
+  height: 20px;
   overflow: hidden;
   color: var(--faint);
   font-size: 12px;
-  line-height: 19px;
+  line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: color 0.25s;
+  opacity: 0.75;
+  transition: color 0.45s var(--ease-out), opacity 0.45s var(--ease-out), font-size 0.3s var(--ease-out);
+}
+
+.lyrics__line--sub {
+  font-size: 11px;
 }
 
 .karaoke {
-  position: relative;
+  --karaoke-sung: var(--text);
+  --karaoke-rest: rgba(255, 255, 255, 0.42);
   display: inline-block;
   max-width: 100%;
   overflow: hidden;
@@ -716,38 +781,35 @@ button:disabled,
   white-space: nowrap;
 }
 
-.karaoke__base {
-  color: inherit;
-  opacity: 0.45;
-}
-
-.karaoke__word {
-  position: relative;
-  display: inline-block;
+/* The sung part is painted through the glyphs rather than layered over a
+   second copy of them: a copy needs a box per character, and Chromium rounds
+   those apart, which spread the characters out on Windows. */
+.karaoke__sung {
+  background-image: linear-gradient(
+    90deg,
+    var(--karaoke-sung) 0 var(--sung, 0%),
+    var(--karaoke-rest) var(--sung, 0%)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   white-space: pre;
 }
 
 /* The sung part is the same text clipped to the elapsed fraction. */
-.karaoke__sung {
-  position: absolute;
-  top: 0;
-  left: 0;
-  overflow: hidden;
-  color: inherit;
-  white-space: nowrap;
-}
-
 .lyrics__line.is-current {
+  --karaoke-sung: var(--text);
+  --karaoke-rest: rgba(255, 255, 255, 0.34);
   color: var(--text);
   font-size: 13.5px;
   font-weight: 600;
-  animation: lyric-in 0.35s var(--ease-out);
+  opacity: 1;
 }
 
 @keyframes lyric-in {
   from {
-    opacity: 0.2;
-    transform: translateY(5px);
+    opacity: 0;
+    transform: translateY(9px);
   }
   to {
     opacity: 1;

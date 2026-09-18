@@ -1,3 +1,6 @@
+import { useEffect, useRef, useState } from "react";
+
+import { t } from "../lib/i18n";
 import { centerGap, lyricWidth, WING } from "../lib/layout";
 import type { LyricWord, MediaState, ScreenInfo } from "../lib/native";
 import { CodeIcon, MusicIcon, PauseIcon, ShelfIcon } from "./Icons";
@@ -24,7 +27,7 @@ export function CompactView({ activity, screen }: { activity: Activity; screen: 
           <span className="compact__glyph compact__glyph--attention"><CodeIcon /></span>
         ) : media ? (
           media.artwork ? (
-            <img className="compact__art" src={media.artwork} alt="" />
+            <img key={media.artwork} className="compact__art" src={media.artwork} alt="" />
           ) : (
             <span className="compact__glyph compact__glyph--music"><MusicIcon /></span>
           )
@@ -45,9 +48,9 @@ export function CompactView({ activity, screen }: { activity: Activity; screen: 
         }}
       >
         {attention > 0 ? (
-          <span className="compact__attention">{attention > 1 ? `${attention} 个等你` : "等你回复"}</span>
+          <span className="compact__attention">{attention > 1 ? t(`${attention} 个等你`, `${attention} waiting`) : t("等你回复", "Waiting for you")}</span>
         ) : lyric ? (
-          <KaraokeLine key={lyric.from} className="compact__lyric" {...lyric} />
+          <CompactLyric lyric={lyric} />
         ) : media ? (
           media.playing ? <Equalizer /> : <span className="compact__glyph"><PauseIcon /></span>
         ) : (
@@ -58,9 +61,41 @@ export function CompactView({ activity, screen }: { activity: Activity; screen: 
   );
 }
 
+/**
+ * The line being sung in the strip. The line before it does not disappear the
+ * moment the next one starts: it slides up and out from under it.
+ */
+function CompactLyric({ lyric }: { lyric: NonNullable<Activity["lyric"]> }) {
+  const [leaving, setLeaving] = useState<{ key: number; text: string } | null>(null);
+  const shown = useRef(lyric);
+
+  useEffect(() => {
+    const previous = shown.current;
+    shown.current = lyric;
+    if (previous.from === lyric.from) return;
+    setLeaving({ key: previous.from, text: previous.text });
+    const timer = window.setTimeout(() => setLeaving(null), LEAVE_MS);
+    return () => window.clearTimeout(timer);
+  }, [lyric]);
+
+  return (
+    <span className="lyric-swap">
+      {leaving && (
+        <span key={leaving.key} className="lyric-swap__out">
+          {leaving.text}
+        </span>
+      )}
+      <KaraokeLine key={lyric.from} className="compact__lyric" {...lyric} />
+    </span>
+  );
+}
+
+/** Keep in step with the lyric-out animation in styles.css. */
+const LEAVE_MS = 420;
+
 function Equalizer() {
   return (
-    <span className="equalizer" aria-label="正在播放">
+    <span className="equalizer" aria-label={t("正在播放", "Playing")}>
       <i />
       <i />
       <i />

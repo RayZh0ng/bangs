@@ -1,9 +1,16 @@
+import type { CSSProperties } from "react";
+
 import type { LyricWord } from "../lib/native";
 
 /**
  * The line being sung, filled in from left to right. QRC gives a timing per
  * character; plain LRC only marks the start of the line, so the sweep is then
  * spread evenly across it.
+ *
+ * The fill is painted through the glyphs themselves rather than layered over a
+ * second copy of the text: a copy needs a box per character, and Chromium
+ * rounds those boxes to whole pixels, which pushed the characters apart on
+ * Windows.
  */
 export function KaraokeLine({
   text,
@@ -26,36 +33,25 @@ export function KaraokeLine({
     return (
       <span className={`karaoke ${className}`}>
         {words.map((word, index) => (
-          <Word key={index} word={word} elapsed={elapsed} />
+          <Sung key={index} text={word.text} sung={clamp((elapsed - word.at) / Math.max(word.duration, 0.05))} />
         ))}
       </span>
     );
   }
 
   const span = Math.max(0.3, to - from);
-  const sung = clamp((elapsed - from) / span);
-
   return (
     <span className={`karaoke ${className}`}>
-      <span className="karaoke__base">{text}</span>
-      <span className="karaoke__sung" style={{ width: `${sung * 100}%` }} aria-hidden>
-        {text}
-      </span>
+      <Sung text={text} sung={clamp((elapsed - from) / span)} />
     </span>
   );
 }
 
-function Word({ word, elapsed }: { word: LyricWord; elapsed: number }) {
-  const sung = clamp((elapsed - word.at) / Math.max(word.duration, 0.05));
-  if (sung >= 1) return <span>{word.text}</span>;
-  if (sung <= 0) return <span className="karaoke__base">{word.text}</span>;
-
+/** Text filled from the left to `sung`, a fraction of its own width. */
+function Sung({ text, sung }: { text: string; sung: number }) {
   return (
-    <span className="karaoke__word">
-      <span className="karaoke__base">{word.text}</span>
-      <span className="karaoke__sung" style={{ width: `${sung * 100}%` }} aria-hidden>
-        {word.text}
-      </span>
+    <span className="karaoke__sung" style={{ "--sung": `${sung * 100}%` } as CSSProperties}>
+      {text}
     </span>
   );
 }
