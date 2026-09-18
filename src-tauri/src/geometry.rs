@@ -60,10 +60,11 @@ impl Geometry {
 
     /// The interactive area: `width` x `height` logical px, centered at the
     /// top edge of the window.
-    pub fn set_hit_rect(&self, width: f64, height: f64) {
+    fn store_hit_rect(&self, width: f64, height: f64) -> f64 {
         let mut inner = self.0.lock().unwrap();
         inner.hit_width = width.clamp(0.0, WINDOW_WIDTH);
         inner.hit_height = height.clamp(0.0, WINDOW_HEIGHT);
+        inner.placement.map(|placement| placement.scale).unwrap_or(1.0)
     }
 
     pub fn set_hidden(&self, hidden: bool) {
@@ -163,6 +164,15 @@ pub fn place_window(app: &AppHandle) {
         display_name: platform::display_label(&monitor).unwrap_or_default(),
     };
 
+    let (hit_width, hit_height) = {
+        let geometry = app.state::<Geometry>();
+        let inner = geometry.0.lock().unwrap();
+        (inner.hit_width, inner.hit_height)
+    };
+    if hit_width > 0.0 {
+        platform::set_hit_region(app, hit_width, hit_height, placement.scale);
+    }
+
     let signature = monitor_signature(&window.available_monitors().unwrap_or_default());
     let changed = {
         let geometry = app.state::<Geometry>();
@@ -176,6 +186,12 @@ pub fn place_window(app: &AppHandle) {
     if changed {
         let _ = app.emit("bangs://screen", &screen);
     }
+}
+
+/// Records the notch's current size and, on Windows, clips the window to it.
+pub fn set_hit_rect(app: &AppHandle, width: f64, height: f64) {
+    let scale = app.state::<Geometry>().store_hit_rect(width, height);
+    platform::set_hit_region(app, width, height, scale);
 }
 
 /// Re-attaches the notch when displays are added, removed or rearranged.
@@ -207,10 +223,16 @@ pub fn spawn_display_watcher(app: AppHandle) {
 /// moves in a panel that is not key, so the webview derives hover from this.
 pub fn spawn_cursor_tracker(app: AppHandle) {
     thread::spawn(move || {
-        let Some(window) = app.get_webview_window(MAIN_WINDOW) else {
-            return;
+        // macOS clips input by the panel's alpha once this is on; Windows uses
+        // a window region instead (see platform::set_hit_region).
+        #[cfg(target_os = "macos")]
+        let window = {
+            let Some(window) = app.get_webview_window(MAIN_WINDOW) else {
+                return;
+            };
+            let _ = window.set_ignore_cursor_events(true);
+            window
         };
-        let _ = window.set_ignore_cursor_events(true);
         let mut inside = false;
         let mut was_down = false;
         let mut last_pointer = None;
@@ -224,6 +246,7 @@ pub fn spawn_cursor_tracker(app: AppHandle) {
             let pointer = app.state::<Geometry>().locate(cursor);
             if pointer.is_some() != inside {
                 inside = pointer.is_some();
+                #[cfg(target_os = "macos")]
                 let _ = window.set_ignore_cursor_events(!inside);
                 let _ = app.emit("bangs://hover", inside);
             }

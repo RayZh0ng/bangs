@@ -57,8 +57,8 @@ fn notch_ready(app: AppHandle) {
 }
 
 #[tauri::command]
-fn set_hit_rect(geometry: State<Geometry>, width: f64, height: f64) {
-    geometry.set_hit_rect(width, height);
+fn set_hit_rect(app: AppHandle, width: f64, height: f64) {
+    geometry::set_hit_rect(&app, width, height);
 }
 
 #[tauri::command]

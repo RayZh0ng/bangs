@@ -87,6 +87,9 @@ pub fn set_window_visible(app: &AppHandle, visible: bool) {
     });
 }
 
+/// macOS clips through the panel's transparent pixels on its own.
+pub fn set_hit_region(_app: &AppHandle, _width: f64, _height: f64, _scale: f64) {}
+
 /// Global cursor position in points, top-left origin of the main display.
 pub fn cursor_position() -> Option<(f64, f64)> {
     unsafe {

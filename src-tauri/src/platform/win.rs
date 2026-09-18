@@ -8,6 +8,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 use windows::Win32::UI::Shell::{
     SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
 };
+use windows::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
 use super::NotchMetrics;
@@ -20,6 +21,31 @@ static HIDDEN_FOR_FULLSCREEN: AtomicBool = AtomicBool::new(false);
 /// via `focusable: false`) is declared in tauri.conf.json.
 pub fn prepare_window(_app: &AppHandle) -> tauri::Result<()> {
     Ok(())
+}
+
+/// Clips the window to the notch instead of using `WS_EX_TRANSPARENT`.
+///
+/// Toggling that style also adds `WS_EX_LAYERED`, and a layered WebView2
+/// window stops being painted, so the notch was only visible while the cursor
+/// happened to rest on it. A window region keeps the window unlayered: the
+/// pixels outside the region are not drawn and clicks there land on whatever
+/// is underneath.
+pub fn set_hit_region(app: &AppHandle, width: f64, height: f64, scale: f64) {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW) else { return };
+    let Ok(handle) = window.hwnd() else { return };
+
+    let window_width = crate::geometry::WINDOW_WIDTH * scale;
+    let left = ((window_width - width * scale) / 2.0).round() as i32;
+    let right = left + (width * scale).round() as i32;
+    let bottom = (height * scale).round() as i32;
+
+    unsafe {
+        let region = CreateRectRgn(left, 0, right, bottom);
+        // The window owns the region once SetWindowRgn succeeds.
+        if SetWindowRgn(handle, Some(region), true) == 0 {
+            let _ = DeleteObject(region.into());
+        }
+    }
 }
 
 pub fn set_window_visible(app: &AppHandle, visible: bool) {
