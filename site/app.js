@@ -81,6 +81,30 @@ const observer = new IntersectionObserver(
 );
 document.querySelectorAll(".card, .release, .code, .section__title").forEach((node) => observer.observe(node));
 
+/* ---------- Chinese or English ---------- */
+
+// Everything translatable carries its English in data-en; the Chinese it ships
+// with is kept the first time it is swapped out.
+const translatable = document.querySelectorAll("[data-en]");
+const toggle = document.querySelector("[data-lang-toggle]");
+let english = !/^zh/i.test(navigator.language || "");
+
+function paint() {
+  for (const node of translatable) {
+    if (node.dataset.zh === undefined) node.dataset.zh = node.innerHTML;
+    node.innerHTML = english ? node.dataset.en : node.dataset.zh;
+  }
+  document.documentElement.lang = english ? "en" : "zh-CN";
+  if (toggle) toggle.textContent = english ? "中文" : "EN";
+}
+
+toggle?.addEventListener("click", () => {
+  english = !english;
+  paint();
+  loadRelease();
+});
+paint();
+
 /* ---------- The latest release ---------- */
 
 // In preference order: the friendly installer first, the alternative second.
@@ -91,6 +115,8 @@ function bytes(size) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
+const say = (zh, en) => (english ? en : zh);
+
 function applyAsset(patterns, links, meta, suffix) {
   return (release) => {
     const asset = patterns
@@ -100,7 +126,7 @@ function applyAsset(patterns, links, meta, suffix) {
       link.href = asset ? asset.browser_download_url : `${RELEASES}/latest`;
     }
     if (meta) {
-      meta.textContent = asset ? `${suffix} · ${bytes(asset.size)}` : `${suffix} · 见 Releases`;
+      meta.textContent = asset ? `${suffix} · ${bytes(asset.size)}` : `${suffix} · ${say("见 Releases", "see Releases")}`;
     }
   };
 }
@@ -115,27 +141,28 @@ async function loadRelease() {
     const release = await response.json();
     const version = (release.tag_name || "").replace(/^v/, "");
 
-    if (text) text.textContent = `最新版本 v${version} · ${new Date(release.published_at).toLocaleDateString("zh-CN")}`;
+    const published = new Date(release.published_at).toLocaleDateString(english ? "en-GB" : "zh-CN");
+    if (text) text.textContent = say(`最新版本 v${version} · ${published}`, `Latest release v${version} · ${published}`);
 
     applyAsset(
       MAC,
       [document.querySelector("[data-download-mac]"), document.querySelector("[data-mac-link]")].filter(Boolean),
       document.querySelector("[data-mac-meta]"),
-      "Apple 芯片 · macOS 12+",
+      say("Apple 芯片 · macOS 12+", "Apple silicon · macOS 12+"),
     )(release);
 
     applyAsset(
       WINDOWS,
       [document.querySelector("[data-download-win]"), document.querySelector("[data-win-link]")].filter(Boolean),
       document.querySelector("[data-win-meta]"),
-      "Windows 10 / 11 · 需要 WebView2",
+      say("Windows 10 / 11 · 需要 WebView2", "Windows 10 / 11 · needs WebView2"),
     )(release);
 
     const note = document.querySelector("[data-download-note]");
-    if (note) note.textContent = `${release.assets.length} 个安装包 · 两个平台同一套代码`;
+    if (note) note.textContent = say(`${release.assets.length} 个安装包 · 两个平台同一套代码`, `${release.assets.length} downloads · one codebase, both platforms`);
   } catch {
     // No releases yet, or GitHub is rate limiting: the plain links still work.
-    if (text) text.textContent = "从 GitHub Releases 下载";
+    if (text) text.textContent = say("从 GitHub Releases 下载", "Download from GitHub Releases");
     document
       .querySelectorAll("[data-download-mac], [data-download-win], [data-mac-link], [data-win-link]")
       .forEach((link) => {
