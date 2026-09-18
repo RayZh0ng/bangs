@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "resources/libbangs_media.dylib": "resources/libbangs_media.dylib"
+    }
+  }
+}
