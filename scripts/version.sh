@@ -37,7 +37,8 @@ node -e '
 
 # Only the package version at the top of the manifest, never a dependency's.
 perl -0pi -e 's/^(\[package\](?:.|\n)*?\nversion = ")[^"]+(")/${1}'"$next"'${2}/m' src-tauri/Cargo.toml
-(cd src-tauri && cargo metadata --no-deps --format-version 1 >/dev/null)
+# Cargo.lock repeats it; patching the entry keeps this script offline and quick.
+perl -0pi -e 's/(\[\[package\]\]\nname = "bangs"\nversion = ")[^"]+(")/${1}'"$next"'${2}/' src-tauri/Cargo.lock
 
 echo "版本已设为 v$(current)"
 echo "改动的文件：package.json  src-tauri/tauri.conf.json  src-tauri/Cargo.toml  src-tauri/Cargo.lock"

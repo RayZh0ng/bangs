@@ -83,16 +83,19 @@ document.querySelectorAll(".card, .release, .code, .section__title").forEach((no
 
 /* ---------- The latest release ---------- */
 
-const MAC = /\.(dmg|app\.zip)$/i;
-const WINDOWS = /(setup\.exe|\.msi)$/i;
+// In preference order: the friendly installer first, the alternative second.
+const MAC = [/\.dmg$/i, /\.app\.zip$/i];
+const WINDOWS = [/setup\.exe$/i, /\.msi$/i];
 
 function bytes(size) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function applyAsset(pattern, links, meta, suffix) {
+function applyAsset(patterns, links, meta, suffix) {
   return (release) => {
-    const asset = release.assets.find((item) => pattern.test(item.name));
+    const asset = patterns
+      .map((pattern) => release.assets.find((item) => pattern.test(item.name)))
+      .find(Boolean);
     for (const link of links) {
       link.href = asset ? asset.browser_download_url : `${RELEASES}/latest`;
     }
