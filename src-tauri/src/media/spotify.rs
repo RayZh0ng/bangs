@@ -12,6 +12,7 @@ use base64::Engine;
 use tauri::AppHandle;
 
 use super::{apply, MediaCommand, MediaHub, MediaState, SPOTIFY};
+use crate::i18n::t;
 use tauri::Manager;
 
 const POLL: Duration = Duration::from_secs(2);
@@ -62,6 +63,10 @@ pub fn start(app: AppHandle) {
 
 /// Transport commands for when the system session does not know about Spotify.
 pub fn command(command: MediaCommand) -> Result<(), String> {
+    // Telling a closed Spotify to play would start it; the user just quit it.
+    if !crate::platform::app_is_running(SPOTIFY) {
+        return Err(t("Spotify 没在运行", "Spotify is not running").into());
+    }
     let script = match command {
         MediaCommand::Toggle => "tell application \"Spotify\" to playpause".to_string(),
         MediaCommand::Next => "tell application \"Spotify\" to next track".to_string(),
@@ -70,7 +75,7 @@ pub fn command(command: MediaCommand) -> Result<(), String> {
             format!("tell application \"Spotify\" to set player position to {position}")
         }
     };
-    ask(&script).map(|_| ()).ok_or_else(|| "Spotify 没有响应".to_string())
+    ask(&script).map(|_| ()).ok_or_else(|| t("Spotify 没有响应", "Spotify did not answer").to_string())
 }
 
 fn publish(app: &AppHandle, next: Option<MediaState>) {

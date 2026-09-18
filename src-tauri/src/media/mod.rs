@@ -86,17 +86,20 @@ fn publish(app: &AppHandle, next: Option<MediaState>) {
 /// Merges the sources and forwards the result to the webview when it changed.
 fn apply(app: &AppHandle) {
     let hub = app.state::<MediaHub>();
-    let next = merge(
-        hub.system.lock().unwrap().clone(),
-        hub.spotify.lock().unwrap().clone(),
-    );
-    {
+    let next = {
+        // Both sources write from their own thread, so the merge and the store
+        // happen under one set of locks: otherwise the slower thread can put
+        // its older merge in last and nothing asks again until a track changes.
+        let system = hub.system.lock().unwrap();
+        let spotify = hub.spotify.lock().unwrap();
         let mut current = hub.state.lock().unwrap();
+        let next = merge(system.clone(), spotify.clone());
         if *current == next {
             return;
         }
         *current = next.clone();
-    }
+        next
+    };
     crate::lyrics::sync(app, next.as_ref());
     let _ = app.emit("media://update", next);
 }
@@ -110,6 +113,11 @@ fn merge(system: Option<MediaState>, spotify: Option<MediaState>) -> Option<Medi
     if system.source_id != SPOTIFY {
         // Whichever one is actually playing is the one to show.
         return Some(if spotify.playing && !system.playing { spotify } else { system });
+    }
+    // The two sources are up to one poll apart; only fill in gaps while they
+    // still agree on what is playing.
+    if system.title != spotify.title {
+        return Some(system);
     }
     if system.artwork.is_none() {
         system.artwork = spotify.artwork;

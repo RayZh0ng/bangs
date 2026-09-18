@@ -223,20 +223,18 @@ fn fetch(title: &str, artist: &str) -> Option<Vec<LyricLine>> {
 }
 
 /// Drops the suffixes players add to a title: "Song - Live", "Song (feat. X)".
+/// A title that is all decoration — "(Don't Fear) The Reaper" — keeps its own
+/// text, because an empty one matches every song in the results.
 fn plain_title(title: &str) -> String {
-    let title = title.split(" - ").next().unwrap_or(title);
-    let title = title.split(['(', '（', '[']).next().unwrap_or(title);
-    title.trim().to_string()
+    let plain = title.split(" - ").next().unwrap_or(title);
+    let plain = plain.split(['(', '（', '[']).next().unwrap_or(plain).trim();
+    if plain.is_empty() { title.trim().to_string() } else { plain.to_string() }
 }
 
 /// The lead artist; a search does worse with the whole billing.
 fn first_artist(artist: &str) -> String {
-    artist
-        .split([',', '&', '/', ';'])
-        .next()
-        .unwrap_or(artist)
-        .trim()
-        .to_string()
+    let lead = artist.split([',', '&', '/', ';']).next().unwrap_or(artist).trim();
+    if lead.is_empty() { artist.trim().to_string() } else { lead.to_string() }
 }
 
 fn lookup(
