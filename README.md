@@ -35,7 +35,11 @@ pnpm tauri build          # .app/.dmg on macOS, .msi/.exe on Windows
 Build each platform on that platform (Windows installers cannot be produced on macOS).
 
 The tray menu — the menu bar icon on macOS, the notification area icon on Windows — controls
-show/hide, expand on hover, idle bar, lyrics, Claude alerts, display and launch at login. Its last
+show/hide, expand on hover, idle bar, lyrics, Claude alerts, display, language and launch at login.
+
+Bangs speaks Chinese and English, following the system language unless the Language submenu pins it
+to one (`src-tauri/src/i18n.rs`, `src/lib/i18n.ts`). WKWebView reports the app's own language rather
+than the system's, so the native side resolves it and hands it to the webview. Its last
 entry is the version: it asks GitHub for the newest release at start-up and every six hours, says
 "有新版本 vX.Y.Z" when this build is behind, and opens the release page when clicked
 (`src-tauri/src/update.rs`). Nothing is ever downloaded or replaced without the user.
