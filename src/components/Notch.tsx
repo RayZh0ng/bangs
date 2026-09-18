@@ -70,7 +70,7 @@ export function Notch() {
         <div className="notch__clip">
           {/* Content is laid out at the target size so it never reflows while the shape animates. */}
           <div key={mode === "success" ? "drop" : mode} className="notch__content" style={{ width: size.width, height: size.height }}>
-            {mode === "compact" && <CompactView activity={activity} base={base} />}
+            {mode === "compact" && <CompactView activity={activity} screen={screen} />}
             {mode === "expanded" && <ExpandedView base={base} notchGap={screen.hasNotch ? base.width : 0} />}
             {(mode === "drop" || mode === "success") && <DropView base={base} success={mode === "success"} />}
           </div>

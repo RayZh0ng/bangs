@@ -16,6 +16,10 @@ const FALLBACK_HEIGHT = 32;
 export const WING = 76;
 /** The right wing grows when it carries a lyric line instead of a glyph. */
 export const LYRIC_WING = 190;
+/** Without a cutout in the way, the lyric gets the whole strip. */
+const LYRIC_STRIP = 300;
+/** A strip on a plain screen may be a little taller than the menu bar. */
+const STRIP_HEIGHT = 28;
 const HANDLE: Size = { width: 130, height: 7 };
 const EXPANDED = { width: 600, body: 184 };
 const DROP = { width: 420, body: 92 };
@@ -27,6 +31,20 @@ export function baseNotch(screen: ScreenInfo): Size {
   }
   const height = screen.menuBarHeight >= 22 ? screen.menuBarHeight : FALLBACK_HEIGHT;
   return { width: VIRTUAL_NOTCH_WIDTH, height };
+}
+
+/**
+ * Dead space in the middle of the compact strip. A MacBook's cutout has to be
+ * flowed around; every other screen — an external display, a Windows one — is
+ * flat there, so the content runs straight across instead.
+ */
+export function centerGap(screen: ScreenInfo): number {
+  return screen.hasNotch ? screen.notchWidth : 0;
+}
+
+/** Room for the lyric line, which is wider when it needs no cutout beside it. */
+export function lyricWidth(screen: ScreenInfo): number {
+  return screen.hasNotch ? LYRIC_WING : LYRIC_STRIP;
 }
 
 export function notchSize(
@@ -43,11 +61,16 @@ export function notchSize(
     case "drop":
     case "success":
       return { width: Math.max(DROP.width, base.width + 160), height: base.height + DROP.body };
-    case "compact":
-      if (lyric) return { width: base.width + WING + LYRIC_WING, height: base.height };
-      if (hasActivity) return { width: base.width + WING * 2, height: base.height };
+    case "compact": {
+      const gap = centerGap(screen);
+      // A hardware notch fixes the height; a drawn strip can afford a couple of
+      // points more, which is what makes a lyric readable on a 24pt menu bar.
+      const height = hasActivity && !screen.hasNotch ? Math.max(base.height, STRIP_HEIGHT) : base.height;
+      if (lyric) return { width: gap + WING + lyricWidth(screen), height };
+      if (hasActivity) return { width: Math.max(base.width, gap + WING * 2), height };
       if (settings.idleHandle && !screen.hasNotch) return HANDLE;
       return base;
+    }
   }
 }
 

@@ -1,5 +1,5 @@
-import { LYRIC_WING, WING, type Size } from "../lib/layout";
-import type { LyricWord, MediaState } from "../lib/native";
+import { centerGap, lyricWidth, WING } from "../lib/layout";
+import type { LyricWord, MediaState, ScreenInfo } from "../lib/native";
 import { CodeIcon, MusicIcon, PauseIcon, ShelfIcon } from "./Icons";
 import { KaraokeLine } from "./KaraokeLine";
 
@@ -12,8 +12,8 @@ export interface Activity {
   shelfCount: number;
 }
 
-/** Live activity on both sides of the (hardware or virtual) notch. */
-export function CompactView({ activity, base }: { activity: Activity; base: Size }) {
+/** Live activity beside the notch, or straight across a screen without one. */
+export function CompactView({ activity, screen }: { activity: Activity; screen: ScreenInfo }) {
   const { attention, media, lyric, shelfCount } = activity;
   if (!attention && !media && shelfCount === 0) return null;
 
@@ -33,11 +33,16 @@ export function CompactView({ activity, base }: { activity: Activity; base: Size
         )}
       </div>
 
-      <div style={{ width: base.width, flex: "none" }} />
+      <div style={{ width: centerGap(screen), flex: "none" }} />
 
       <div
         className="compact__wing compact__wing--end"
-        style={{ width: lyric ? LYRIC_WING : WING }}
+        style={{
+          width: lyric ? lyricWidth(screen) : WING,
+          // Without a cutout the lyric reads on from the artwork; beside one it
+          // hangs off the right edge instead.
+          justifyContent: lyric && !screen.hasNotch ? "flex-start" : undefined,
+        }}
       >
         {attention > 0 ? (
           <span className="compact__attention">{attention > 1 ? `${attention} 个等你` : "等你回复"}</span>
