@@ -4,17 +4,22 @@ import { clock } from "../lib/format";
 import type { LyricLine } from "../lib/native";
 import { useNow } from "../lib/useNow";
 import { lineAt, useLyrics } from "../store/lyrics";
-import { elapsedAt, useMedia } from "../store/media";
+import { elapsedAt, isMediaLive, useMedia } from "../store/media";
 import { Empty } from "./Empty";
 import { KaraokeLine } from "./KaraokeLine";
 import { MusicIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon } from "./Icons";
 
 export function MusicPanel() {
-  const media = useMedia((s) => s.media);
+  const current = useMedia((s) => s.media);
+  const lastActiveAt = useMedia((s) => s.lastActiveAt);
   const send = useMedia((s) => s.send);
   const lines = useLyrics((s) => s.lines);
   // The sweep over the current line needs a faster clock than the progress bar.
-  const now = useNow(media?.playing ? (lines.length ? 80 : 250) : 1000, !!media);
+  const now = useNow(current?.playing ? (lines.length ? 80 : 250) : 1000, !!current);
+
+  // The same rule the compact strip uses, so the two never disagree about
+  // whether a long-paused track still counts as playing.
+  const media = isMediaLive(current, lastActiveAt, now) ? current : null;
 
   if (!media) {
     return <Empty icon={<MusicIcon />} title="没有正在播放的音乐" hint="在任意播放器里开始播放，就会显示在这里" />;
