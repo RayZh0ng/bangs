@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { Notch } from "./components/Notch";
 import { notify, playPing } from "./lib/alerts";
 import { hoverAt } from "./lib/hover";
+import { setLanguage, t } from "./lib/i18n";
 import { events, native, type DevState } from "./lib/native";
 import { useDev } from "./store/dev";
 import { useLyrics } from "./store/lyrics";
@@ -27,6 +28,11 @@ export default function App() {
       events.outsideClick(() => useNotch.getState().outsideClicked()),
       events.screen((screen) => useNotch.setState({ screen })),
       events.settings((settings) => useNotch.setState({ settings })),
+      events.language((language) => {
+        setLanguage(language);
+        // Nothing else changed, so nudge the tree into re-rendering the words.
+        useNotch.setState((state) => ({ settings: { ...state.settings } }));
+      }),
       events.media((media) => useMedia.getState().update(media)),
       events.lyrics((lyrics) => useLyrics.getState().update(lyrics)),
       events.dev(handleDev),
@@ -39,6 +45,7 @@ export default function App() {
       .then(async () => {
         const boot = await native.bootstrap();
         if (disposed) return;
+        setLanguage(boot.language);
         useMedia.getState().update(boot.media);
         useLyrics.getState().update(boot.lyrics);
         useDev.getState().update(boot.dev);
@@ -85,7 +92,11 @@ function alertWith(section: Section) {
   window.clearTimeout(alertTimer);
   alertTimer = window.setTimeout(() => {
     const notch = useNotch.getState();
-    if (notch.mode === "expanded" && !notch.hovering) notch.collapse();
+    if (notch.mode !== "expanded") return;
+    // The pin was the alert's, not the user's: give it back either way, so a
+    // panel that opened by itself never stays open by itself.
+    useNotch.setState({ pinned: false });
+    if (!notch.hovering) notch.collapse();
   }, ALERT_OPEN_MS);
 }
 
@@ -99,14 +110,20 @@ function handleDev(next: DevState) {
   if (!session) return;
   playPing();
   void notify(
-    session.status === "waiting" ? `${session.project} 在等你回复` : `${session.project} 跑完了`,
+    session.status === "waiting"
+      ? t(`${session.project} 在等你回复`, `${session.project} is waiting for you`)
+      : t(`${session.project} 跑完了`, `${session.project} has finished`),
     session.detail ?? session.name,
   );
   alertWith("dev");
 }
 
 function dropMessage({ added, duplicates, rejectedForSpace }: AddResult) {
-  if (added > 0) return rejectedForSpace > 0 ? `已暂存 ${added} 个，暂存架满了` : `已暂存 ${added} 个文件`;
-  if (rejectedForSpace > 0) return "暂存架满了";
-  return duplicates > 0 ? "已经在暂存架里" : "无法暂存这个项目";
+  if (added > 0) {
+    return rejectedForSpace > 0
+      ? t(`已暂存 ${added} 个，暂存架满了`, `Kept ${added}, the shelf is full`)
+      : t(`已暂存 ${added} 个文件`, `Kept ${added} file${added > 1 ? "s" : ""}`);
+  }
+  if (rejectedForSpace > 0) return t("暂存架满了", "The shelf is full");
+  return duplicates > 0 ? t("已经在暂存架里", "Already on the shelf") : t("无法暂存这个项目", "That cannot be kept here");
 }

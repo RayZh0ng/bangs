@@ -71,7 +71,16 @@ export const useNotch = create<NotchStore>((set, get) => {
   return {
     ready: false,
     screen: { platform: "", hasNotch: false, notchWidth: 0, notchHeight: 0, menuBarHeight: 0, displayName: "" },
-    settings: { visible: true, expandOnHover: true, idleHandle: false, notifyClaudeIdle: true, lyricsEnabled: true, display: null },
+    settings: {
+      visible: true,
+      expandOnHover: true,
+      idleHandle: false,
+      notifyClaudeIdle: true,
+      lyricsEnabled: true,
+      clipboardHistory: true,
+      display: null,
+      language: null,
+    },
     dragIcon: null,
     mode: "compact",
     section: "music",
@@ -99,7 +108,9 @@ export const useNotch = create<NotchStore>((set, get) => {
     outsideClicked() {
       // A drag-out that never reported back must not keep the panel open.
       set({ draggingOut: false });
-      if (get().mode === "expanded") get().collapse();
+      // Pinning is for keeping the panel open while you work elsewhere, so a
+      // click in another window must not close it; the pin does that.
+      if (get().mode === "expanded" && !get().pinned) get().collapse();
     },
 
     expand(section, pin = false) {
