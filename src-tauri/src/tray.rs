@@ -4,6 +4,7 @@ use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::settings::{self, SettingsState};
+use crate::update;
 use crate::{geometry, platform, MAIN_WINDOW};
 
 const TRAY_ID: &str = "bangs-tray";
@@ -52,6 +53,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &PredefinedMenuItem::separator(app)?,
             &CheckMenuItem::with_id(app, "autostart", "开机启动", true, autostart, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, "version", &update::menu_label(app), true, None::<&str>)?,
             &MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?,
         ],
     )
@@ -88,6 +90,12 @@ pub fn refresh(app: &AppHandle) {
 fn handle_menu(app: &AppHandle, id: &str) {
     match id {
         "quit" => app.exit(0),
+        "version" => {
+            update::open_releases(app);
+            // The menu may have been sitting open since the last check.
+            let handle = app.clone();
+            std::thread::spawn(move || update::refresh(&handle));
+        }
         "visible" => {
             let (_, next) = settings::update(app, |settings| settings.visible = !settings.visible);
             crate::apply_visibility(app, next.visible);

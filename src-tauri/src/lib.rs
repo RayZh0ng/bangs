@@ -7,6 +7,7 @@ mod platform;
 mod settings;
 mod shelf;
 mod tray;
+mod update;
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
@@ -17,6 +18,7 @@ use lyrics::{Lyrics, LyricsHub};
 use media::{MediaCommand, MediaHub, MediaState};
 use clipboard::{ClipboardHub, ClipboardState};
 use settings::{Settings, SettingsState};
+use update::UpdateState;
 
 pub const MAIN_WINDOW: &str = "main";
 
@@ -102,6 +104,7 @@ pub fn run() {
             app.manage(LyricsHub::default());
             app.manage(DevHub::default());
             app.manage(ClipboardHub::default());
+            app.manage(UpdateState::default());
 
             platform::prepare_window(&handle)?;
             geometry::place_window(&handle);
@@ -112,6 +115,7 @@ pub fn run() {
             dev::start(handle.clone());
             clipboard::start(handle.clone());
             tray::create(&handle)?;
+            update::start(handle.clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
