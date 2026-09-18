@@ -45,11 +45,20 @@ export interface FileMeta {
   isImage: boolean;
 }
 
+export interface LyricWord {
+  /** Seconds into the track. */
+  at: number;
+  duration: number;
+  text: string;
+}
+
 export interface LyricLine {
   /** Seconds into the track. */
   at: number;
   text: string;
   translation: string | null;
+  /** Per-character timing, when the source has it. */
+  words?: LyricWord[];
 }
 
 export interface Lyrics {

@@ -268,12 +268,8 @@ img {
 
 .compact__lyric {
   max-width: 100%;
-  overflow: hidden;
-  color: rgba(255, 255, 255, 0.92);
+  color: rgba(255, 255, 255, 0.95);
   font-size: 12px;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   animation: lyric-in 0.35s var(--ease-out);
 }
 
@@ -686,6 +682,36 @@ img {
   text-overflow: ellipsis;
   white-space: nowrap;
   transition: color 0.25s;
+}
+
+.karaoke {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.karaoke__base {
+  color: inherit;
+  opacity: 0.45;
+}
+
+.karaoke__word {
+  position: relative;
+  display: inline-block;
+  white-space: pre;
+}
+
+/* The sung part is the same text clipped to the elapsed fraction. */
+.karaoke__sung {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  color: inherit;
+  white-space: nowrap;
 }
 
 .lyrics__line.is-current {

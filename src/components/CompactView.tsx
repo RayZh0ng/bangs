@@ -1,13 +1,14 @@
 import { LYRIC_WING, WING, type Size } from "../lib/layout";
-import type { MediaState } from "../lib/native";
+import type { LyricWord, MediaState } from "../lib/native";
 import { CodeIcon, MusicIcon, PauseIcon, ShelfIcon } from "./Icons";
+import { KaraokeLine } from "./KaraokeLine";
 
 export interface Activity {
   /** Claude Code sessions waiting for an answer. */
   attention: number;
   media: MediaState | null;
   /** The line being sung right now, when the player has lyrics. */
-  lyric: string | null;
+  lyric: { text: string; words?: LyricWord[]; from: number; to: number; elapsed: number } | null;
   shelfCount: number;
 }
 
@@ -41,7 +42,7 @@ export function CompactView({ activity, base }: { activity: Activity; base: Size
         {attention > 0 ? (
           <span className="compact__attention">{attention > 1 ? `${attention} 个等你` : "等你回复"}</span>
         ) : lyric ? (
-          <span key={lyric} className="compact__lyric">{lyric}</span>
+          <KaraokeLine key={lyric.from} className="compact__lyric" {...lyric} />
         ) : media ? (
           media.playing ? <Equalizer /> : <span className="compact__glyph"><PauseIcon /></span>
         ) : (

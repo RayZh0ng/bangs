@@ -6,13 +6,15 @@ import { useNow } from "../lib/useNow";
 import { lineAt, useLyrics } from "../store/lyrics";
 import { elapsedAt, useMedia } from "../store/media";
 import { Empty } from "./Empty";
+import { KaraokeLine } from "./KaraokeLine";
 import { MusicIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon } from "./Icons";
 
 export function MusicPanel() {
   const media = useMedia((s) => s.media);
   const send = useMedia((s) => s.send);
   const lines = useLyrics((s) => s.lines);
-  const now = useNow(media?.playing ? 250 : 1000, !!media);
+  // The sweep over the current line needs a faster clock than the progress bar.
+  const now = useNow(media?.playing ? (lines.length ? 80 : 250) : 1000, !!media);
 
   if (!media) {
     return <Empty icon={<MusicIcon />} title="没有正在播放的音乐" hint="在任意播放器里开始播放，就会显示在这里" />;
@@ -88,8 +90,18 @@ function LyricView({ lines, elapsed }: { lines: LyricLine[]; elapsed: number }) 
   return (
     <div className="lyrics">
       <div className="lyrics__line">{lines[index - 1]?.text ?? ""}</div>
-      <div key={index} className="lyrics__line is-current">
-        {line?.text ?? ""}
+      <div className="lyrics__line is-current">
+        {line ? (
+          <KaraokeLine
+            text={line.text}
+            words={line.words}
+            from={line.at}
+            to={lines[index + 1]?.at ?? line.at + 6}
+            elapsed={elapsed}
+          />
+        ) : (
+          ""
+        )}
       </div>
       {/* The translation is more useful than the next line when there is one. */}
       <div className="lyrics__line">{line?.translation ?? lines[index + 1]?.text ?? ""}</div>

@@ -171,9 +171,7 @@ fn read_claude_sessions(system: &System) -> Vec<AgentSession> {
         .filter_map(|entry| {
             let file: SessionFile = serde_json::from_str(&fs::read_to_string(entry.path()).ok()?).ok()?;
             // Session files outlive their process; drop the stale ones.
-            if system.process(sysinfo::Pid::from_u32(file.pid)).is_none() {
-                return None;
-            }
+            system.process(sysinfo::Pid::from_u32(file.pid))?;
             if file.cwd.contains(SCRATCH_MARKER) {
                 return None;
             }

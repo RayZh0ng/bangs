@@ -23,13 +23,23 @@ export function Notch() {
   const waiting = useDev((s) => waitingSessions(s.sessions).length);
   const lyricLines = useLyrics((s) => s.lines);
 
-  // Lyrics need a fast clock; everything else in the compact notch is slow.
-  const now = useNow(media?.playing && lyricLines.length ? 300 : 5_000);
+  // The lyric sweep needs a fast clock; everything else here is slow.
+  const now = useNow(media?.playing && lyricLines.length ? 80 : 5_000);
 
   const live = isMediaLive(media, lastActiveAt, now) ? media : null;
   const elapsed = media?.playing ? elapsedAt(media, now) : null;
+  const lyricIndex = live?.playing && elapsed != null ? lineAt(lyricLines, elapsed) : -1;
+  const lyricLine = lyricLines[lyricIndex];
   const lyric =
-    live?.playing && elapsed != null ? (lyricLines[lineAt(lyricLines, elapsed)]?.text ?? null) : null;
+    lyricLine && elapsed != null
+      ? {
+          text: lyricLine.text,
+          words: lyricLine.words,
+          from: lyricLine.at,
+          to: lyricLines[lyricIndex + 1]?.at ?? lyricLine.at + 6,
+          elapsed,
+        }
+      : null;
 
   const activity: Activity = { attention: waiting, media: live, lyric, shelfCount };
   const hasActivity = activity.attention > 0 || !!activity.media || activity.shelfCount > 0;

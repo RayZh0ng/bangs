@@ -17,10 +17,23 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::media::MediaState;
 use crate::settings::SettingsState;
 
+mod qrc;
+
 const SEARCH_URL: &str = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp";
 const LYRIC_URL: &str = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg";
+/// Returns QRC, which carries a timing per character.
+const QRC_URL: &str = "https://c.y.qq.com/qqmusic/fcgi-bin/lyric_download.fcg";
 const REFERER: &str = "https://y.qq.com/portal/player.html";
 const TIMEOUT: Duration = Duration::from_secs(8);
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricWord {
+    /// Seconds into the track.
+    pub at: f64,
+    pub duration: f64,
+    pub text: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +42,9 @@ pub struct LyricLine {
     pub at: f64,
     pub text: String,
     pub translation: Option<String>,
+    /// Per-character timing, when the source has it (QRC).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub words: Vec<LyricWord>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -209,7 +225,18 @@ fn fetch(title: &str, artist: &str) -> Option<Vec<LyricLine>> {
     };
 
     let songs = search["data"]["song"]["list"].as_array()?;
-    let song_mid = best_match(songs, title, artist)?;
+    let song = best_match(songs, title, artist)?;
+    let song_mid = song["songmid"].as_str().unwrap_or_default().to_string();
+
+    // Per-character timing first; the plain LRC endpoint is the fallback.
+    if let Some(id) = song["songid"].as_i64() {
+        if let Some(lines) = fetch_qrc(&client, id) {
+            return Some(lines);
+        }
+    }
+    if song_mid.is_empty() {
+        return None;
+    }
     // The endpoint answers -1901 now and then; a second ask usually works.
     for attempt in 0..2 {
         if attempt > 0 {
@@ -248,7 +275,11 @@ fn normalize(value: &str) -> String {
 
 /// Prefers an exact title match by the same artist; the search endpoint
 /// otherwise happily returns covers and remixes first.
-fn best_match(songs: &[serde_json::Value], title: &str, artist: &str) -> Option<String> {
+fn best_match<'a>(
+    songs: &'a [serde_json::Value],
+    title: &str,
+    artist: &str,
+) -> Option<&'a serde_json::Value> {
     let wanted_title = normalize(title);
     let wanted_artist = normalize(artist);
 
@@ -285,8 +316,123 @@ fn best_match(songs: &[serde_json::Value], title: &str, artist: &str) -> Option<
         .iter()
         .max_by_key(|song| score(song))
         .filter(|song| score(song) > 0)
-        .and_then(|song| song["songmid"].as_str())
-        .map(str::to_string)
+}
+
+/// Downloads the QRC document and turns it into timed lines. The response is
+/// XML whose CDATA sections hold the encrypted lyric and its translation.
+fn fetch_qrc(client: &reqwest::blocking::Client, song_id: i64) -> Option<Vec<LyricLine>> {
+    let document = client
+        .get(format!(
+            "{QRC_URL}?version=15&miniversion=82&lrctype=4&musicid={song_id}"
+        ))
+        .header("Referer", "https://y.qq.com")
+        .send()
+        .ok()?
+        .text()
+        .ok()?;
+
+    let blocks: Vec<&str> = document
+        .split("<![CDATA[")
+        .skip(1)
+        .filter_map(|block| block.split("]]>").next())
+        .map(str::trim)
+        .collect();
+
+    let lines = parse_qrc(&qrc::decrypt_lyrics(blocks.first()?)?);
+    if lines.is_empty() {
+        return None;
+    }
+    let translations = blocks
+        .get(1)
+        .filter(|block| !block.is_empty())
+        .and_then(|block| qrc::decrypt_lyrics(block))
+        .map(|text| parse_lrc(&strip_qrc_timings(&text)))
+        .unwrap_or_default();
+    Some(with_translation(lines, translations))
+}
+
+/// The lyric lives in the `LyricContent` attribute of the QRC document.
+fn qrc_content(document: &str) -> Option<&str> {
+    let start = document.find("LyricContent=\"")? + "LyricContent=\"".len();
+    let rest = &document[start..];
+    let end = rest.rfind("\"")?;
+    Some(&rest[..end])
+}
+
+/// `[start,duration]字(start,duration)字(start,duration)…`, milliseconds.
+fn parse_qrc(document: &str) -> Vec<LyricLine> {
+    let mut lines = Vec::new();
+    for row in qrc_content(document).unwrap_or_default().lines() {
+        let Some(rest) = row.strip_prefix('[') else { continue };
+        let Some((head, body)) = rest.split_once(']') else { continue };
+        let Some((start, _)) = head.split_once(',') else { continue };
+        let Ok(start): Result<f64, _> = start.trim().parse() else { continue };
+
+        let words = parse_qrc_words(body);
+        let text: String = words.iter().map(|word| word.text.as_str()).collect();
+        if text.trim().is_empty() {
+            continue;
+        }
+        lines.push(LyricLine {
+            at: words.first().map(|word| word.at).unwrap_or(start / 1000.0),
+            text,
+            translation: None,
+            words,
+        });
+    }
+    lines.sort_by(|a, b| a.at.total_cmp(&b.at));
+    lines
+}
+
+fn parse_qrc_words(body: &str) -> Vec<LyricWord> {
+    let mut words = Vec::new();
+    let mut text = String::new();
+    let mut chars = body.chars().peekable();
+
+    while let Some(character) = chars.next() {
+        if character != '(' {
+            text.push(character);
+            continue;
+        }
+        let timing: String = chars.by_ref().take_while(|next| *next != ')').collect();
+        // A literal bracket in the lyric is not a timing group.
+        let Some((at, duration)) = timing
+            .split_once(',')
+            .and_then(|(at, duration)| Some((at.trim().parse::<f64>().ok()?, duration.trim().parse::<f64>().ok()?)))
+        else {
+            text.push('(');
+            text.push_str(&timing);
+            text.push(')');
+            continue;
+        };
+        words.push(LyricWord {
+            at: at / 1000.0,
+            duration: duration / 1000.0,
+            text: std::mem::take(&mut text),
+        });
+    }
+    if !text.is_empty() {
+        if let Some(last) = words.last_mut() {
+            last.text.push_str(&text);
+        }
+    }
+    words
+}
+
+/// Translations come as QRC too; drop the per-character stamps to read them as LRC.
+fn strip_qrc_timings(document: &str) -> String {
+    let content = qrc_content(document).unwrap_or(document);
+    let mut cleaned = String::with_capacity(content.len());
+    let mut depth = 0;
+    for character in content.chars() {
+        match character {
+            '(' => depth += 1,
+            ')' if depth > 0 => depth -= 1,
+            _ if depth == 0 => cleaned.push(character),
+            _ => {}
+        }
+    }
+    cleaned
 }
 
 /// Some responses come back wrapped in a callback, e.g. `MusicJsonCallback({…})`.
@@ -315,7 +461,7 @@ fn parse_lrc(raw: &str) -> Vec<LyricLine> {
             continue;
         }
         for at in stamps {
-            lines.push(LyricLine { at, text: text.to_string(), translation: None });
+            lines.push(LyricLine { at, text: text.to_string(), translation: None, words: Vec::new() });
         }
     }
     lines.sort_by(|a, b| a.at.total_cmp(&b.at));

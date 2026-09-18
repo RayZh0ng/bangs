@@ -61,7 +61,6 @@ impl Geometry {
     /// The interactive area: `width` x `height` logical px, centered at the
     /// top edge of the window.
     pub fn set_hit_rect(&self, width: f64, height: f64) {
-        eprintln!("[dbg] hit {width}x{height}");
         let mut inner = self.0.lock().unwrap();
         inner.hit_width = width.clamp(0.0, WINDOW_WIDTH);
         inner.hit_height = height.clamp(0.0, WINDOW_HEIGHT);
@@ -226,7 +225,6 @@ pub fn spawn_cursor_tracker(app: AppHandle) {
             if pointer.is_some() != inside {
                 inside = pointer.is_some();
                 let _ = window.set_ignore_cursor_events(!inside);
-                eprintln!("[dbg] hover {inside}");
                 let _ = app.emit("bangs://hover", inside);
             }
             if let Some((x, y)) = pointer.filter(|_| pointer != last_pointer) {
