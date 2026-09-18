@@ -118,6 +118,7 @@ pub fn run() {
             clipboard::clipboard_use,
             clipboard::clipboard_open,
             clipboard::clipboard_clear,
+            clipboard::clipboard_more,
             clipboard::clipboard_install,
             shelf::shelf_inspect,
             shelf::open_file,

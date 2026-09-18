@@ -145,6 +145,8 @@ export const native = {
   clipboardUse: (id: number) => invoke<void>("clipboard_use", { id }),
   clipboardOpen: () => invoke<void>("clipboard_open"),
   clipboardClear: () => invoke<void>("clipboard_clear"),
+  /** Loads the next page; false once everything is loaded. */
+  clipboardMore: () => invoke<boolean>("clipboard_more"),
   clipboardInstall: () => invoke<void>("clipboard_install"),
   inspectFiles: (paths: string[]) => invoke<FileMeta[]>("shelf_inspect", { paths }),
   openFile: (path: string) => invoke<void>("open_file", { path }),

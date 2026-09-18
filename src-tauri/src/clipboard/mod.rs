@@ -63,19 +63,37 @@ impl Default for ClipboardState {
     }
 }
 
-#[derive(Default)]
-pub struct ClipboardHub(Mutex<ClipboardState>);
+/// How many entries the panel asks for before any scrolling.
+pub const PAGE: usize = 24;
+/// Scrolling stops loading here; the panel is a shortcut, not an archive.
+const MAX_ITEMS: usize = 400;
+
+pub struct ClipboardHub {
+    state: Mutex<ClipboardState>,
+    /// Grows as the user scrolls the panel.
+    limit: Mutex<usize>,
+}
+
+impl Default for ClipboardHub {
+    fn default() -> Self {
+        Self { state: Mutex::new(ClipboardState::default()), limit: Mutex::new(PAGE) }
+    }
+}
 
 impl ClipboardHub {
     pub fn current(&self) -> ClipboardState {
-        self.0.lock().unwrap().clone()
+        self.state.lock().unwrap().clone()
+    }
+
+    pub fn limit(&self) -> usize {
+        *self.limit.lock().unwrap()
     }
 }
 
 fn publish(app: &AppHandle, next: ClipboardState) {
     {
         let hub = app.state::<ClipboardHub>();
-        let mut current = hub.0.lock().unwrap();
+        let mut current = hub.state.lock().unwrap();
         if *current == next {
             return;
         }
@@ -105,6 +123,32 @@ pub fn clipboard_use(app: AppHandle, id: i64) -> Result<(), String> {
         let _ = (app, id);
         Err("剪贴板在这个平台上不可用".into())
     }
+}
+
+/// Loads the next page; the panel calls this when it is scrolled to the end.
+/// Returns false once everything is loaded, so the panel stops asking.
+#[tauri::command]
+pub fn clipboard_more(app: AppHandle) -> bool {
+    let hub = app.state::<ClipboardHub>();
+    let loaded = hub.current().items.len();
+    let limit = hub.limit();
+    // Nothing new arrived last time: the history is shorter than the limit.
+    if loaded < limit || limit >= MAX_ITEMS {
+        return false;
+    }
+    *hub.limit.lock().unwrap() = (limit + PAGE).min(MAX_ITEMS);
+    refresh(&app);
+    true
+}
+
+/// Re-reads the history right away, instead of waiting for the next poll.
+fn refresh(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    mac::refresh(app);
+    #[cfg(windows)]
+    win::refresh(app);
+    #[cfg(not(any(target_os = "macos", windows)))]
+    let _ = app;
 }
 
 /// macOS only: hands over to Paste's own panel, which can paste for you.

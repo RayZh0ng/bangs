@@ -10,13 +10,12 @@ use std::time::Duration;
 
 use base64::Engine;
 use rusqlite::{Connection, OpenFlags};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use super::{publish, ClipItem, ClipKind, ClipSource, ClipboardState};
 
 const POLL: Duration = Duration::from_secs(3);
-const LIMIT: i64 = 24;
 const PREVIEW_CHARS: usize = 180;
 /// Core Data stores dates as seconds since 2001-01-01.
 const CORE_DATA_EPOCH: f64 = 978_307_200.0;
@@ -83,12 +82,16 @@ fn preview_of(text: Option<String>, kind: ClipKind) -> String {
     }
 }
 
-fn read_items(connection: &Connection, icons: &HashMap<String, String>) -> rusqlite::Result<Vec<ClipItem>> {
+fn read_items(
+    connection: &Connection,
+    icons: &HashMap<String, String>,
+    limit: usize,
+) -> rusqlite::Result<Vec<ClipItem>> {
     let mut statement = connection.prepare(
         "SELECT Z_PK, ZTYPE, ZISPINNED, ZCREATEDAT, ZAPPBUNDLEID, substr(ZPLAINTEXT, 1, 400)
          FROM ZCLIPBOARDITEMENTITY ORDER BY ZCREATEDAT DESC LIMIT ?1",
     )?;
-    let rows = statement.query_map([LIMIT], |row| {
+    let rows = statement.query_map([limit as i64], |row| {
         let kind = match row.get::<_, i64>(1)? {
             1 => ClipKind::Image,
             2 => ClipKind::Files,
@@ -120,19 +123,34 @@ pub fn start(app: AppHandle) {
                 }
             }
 
-            let next = match connection.as_ref().map(|db| read_items(db, &icons)) {
-                Some(Ok(items)) => ClipboardState { available: true, source: ClipSource::Paste, items },
+            let limit = app.state::<super::ClipboardHub>().limit();
+            match connection.as_ref().map(|db| read_items(db, &icons, limit)) {
+                Some(Ok(items)) => {
+                    publish(&app, ClipboardState { available: true, source: ClipSource::Paste, items });
+                }
                 Some(Err(error)) => {
+                    // Keep showing what was read last time and try again; a
+                    // hiccup is not the same as Paste being missing.
                     eprintln!("[clipboard] read failed: {error}");
                     connection = None;
-                    ClipboardState::default()
                 }
-                None => ClipboardState::default(),
-            };
-            publish(&app, next);
+                // Only an absent store means Paste is not installed.
+                None if store_path().is_none() => publish(&app, ClipboardState::default()),
+                None => {}
+            }
             thread::sleep(POLL);
         }
     });
+}
+
+/// Reads the history immediately, for when the panel asks for another page.
+pub fn refresh(app: &AppHandle) {
+    let Some(connection) = connect() else { return };
+    let icons = read_icons(&connection);
+    let limit = app.state::<super::ClipboardHub>().limit();
+    if let Ok(items) = read_items(&connection, &icons, limit) {
+        publish(app, ClipboardState { available: true, source: ClipSource::Paste, items });
+    }
 }
 
 /// Puts a history entry back on the clipboard. Images and files are left to

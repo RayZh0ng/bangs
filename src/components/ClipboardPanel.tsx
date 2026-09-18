@@ -1,3 +1,5 @@
+import type { UIEvent } from "react";
+
 import { relativeTime } from "../lib/format";
 import type { ClipItem } from "../lib/native";
 import { useNow } from "../lib/useNow";
@@ -17,7 +19,8 @@ export function ClipboardPanel() {
   const source = useClipboard((state) => state.source);
   const copiedId = useClipboard((state) => state.copiedId);
   const notice = useClipboard((state) => state.notice);
-  const { use, showPanel, clear, install } = useClipboard.getState();
+  const hasMore = useClipboard((state) => state.hasMore);
+  const { use, showPanel, clear, install, loadMore } = useClipboard.getState();
   const now = useNow(20_000);
 
   // Only macOS has an external history, and only there can it be missing.
@@ -37,9 +40,15 @@ export function ClipboardPanel() {
     return <Empty icon={<ClipboardIcon />} title="剪贴板历史是空的" hint="复制点什么，就会出现在这里" />;
   }
 
+  // Older entries load as the list reaches its end.
+  const onScroll = (event: UIEvent<HTMLDivElement>) => {
+    const list = event.currentTarget;
+    if (list.scrollTop + list.clientHeight >= list.scrollHeight - 40) void loadMore();
+  };
+
   return (
     <div className="paste">
-      <div className="rows rows--snap">
+      <div className="rows rows--snap" onScroll={onScroll}>
         {items.map((item) => (
           <button key={item.id} className="row" title={item.preview} onClick={() => void use(item)}>
             {item.icon ? (
@@ -60,7 +69,7 @@ export function ClipboardPanel() {
         ))}
       </div>
       <div className="shelf__footer">
-        <span>{notice ?? (source === "paste" ? "点一下放回剪贴板" : `${items.length} 条 · 点一下放回剪贴板`)}</span>
+        <span>{notice ?? `${items.length} 条${hasMore ? "+" : ""} · 点一下放回剪贴板`}</span>
         {source === "paste" ? (
           <button className="link-button" onClick={() => void showPanel()}>
             唤出 Paste

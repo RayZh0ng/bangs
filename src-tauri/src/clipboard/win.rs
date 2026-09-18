@@ -63,18 +63,25 @@ fn save(app: &AppHandle, clips: &[StoredClip]) {
     }
 }
 
-fn state_of(clips: &[StoredClip]) -> ClipboardState {
+fn state_of(clips: &[StoredClip], limit: usize) -> ClipboardState {
     ClipboardState {
         available: true,
         source: ClipSource::Builtin,
-        items: clips.iter().map(|clip| clip.item.clone()).collect(),
+        items: clips.iter().take(limit).map(|clip| clip.item.clone()).collect(),
     }
+}
+
+/// Re-publishes with the current limit, for when the panel asks for more.
+pub fn refresh(app: &AppHandle) {
+    let clips = load(app);
+    let limit = app.state::<super::ClipboardHub>().limit();
+    publish(app, state_of(&clips, limit));
 }
 
 pub fn start(app: AppHandle) {
     thread::spawn(move || {
         let mut clips = load(&app);
-        publish(&app, state_of(&clips));
+        publish(&app, state_of(&clips, app.state::<super::ClipboardHub>().limit()));
 
         let mut system = System::new_with_specifics(
             RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing().with_exe(UpdateKind::Always)),
@@ -102,7 +109,7 @@ pub fn start(app: AppHandle) {
             clips.insert(0, capture);
             clips.truncate(MAX_ITEMS);
             save(&app, &clips);
-            publish(&app, state_of(&clips));
+            publish(&app, state_of(&clips, app.state::<super::ClipboardHub>().limit()));
         }
     });
 }
@@ -120,7 +127,7 @@ pub fn copy(app: AppHandle, id: i64) -> Result<(), String> {
 
 pub fn clear(app: AppHandle) -> Result<(), String> {
     save(&app, &[]);
-    publish(&app, state_of(&[]));
+    publish(&app, state_of(&[], super::PAGE));
     Ok(())
 }
 

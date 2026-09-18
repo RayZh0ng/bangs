@@ -7,7 +7,11 @@ interface ClipboardStore extends ClipboardState {
   copiedId: number | null;
   /** Transient message shown in the footer. */
   notice: string | null;
+  /** False once the history is fully loaded. */
+  hasMore: boolean;
+  loading: boolean;
   update(next: ClipboardState): void;
+  loadMore(): Promise<void>;
   use(item: ClipItem): Promise<void>;
   showPanel(): Promise<void>;
   clear(): Promise<void>;
@@ -29,9 +33,24 @@ export const useClipboard = create<ClipboardStore>((set, get) => ({
   items: [],
   copiedId: null,
   notice: null,
+  hasMore: true,
+  loading: false,
 
   update(next) {
     set({ available: next.available, source: next.source, items: next.items });
+  },
+
+  async loadMore() {
+    if (get().loading || !get().hasMore) return;
+    set({ loading: true });
+    try {
+      const more = await native.clipboardMore();
+      set({ hasMore: more });
+    } catch (error) {
+      report(set, error);
+    } finally {
+      set({ loading: false });
+    }
   },
 
   async use(item) {
