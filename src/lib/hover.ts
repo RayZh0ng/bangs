@@ -11,8 +11,19 @@ import { native } from "./native";
 let hovered: Element[] = [];
 let target: Element | null = null;
 let shape = "default";
+let last: [number, number] | null = null;
+
+/**
+ * Re-reads what is under the pointer without it having moved, for when the
+ * panel opens or closes underneath it.
+ */
+export function refreshHover() {
+  target = null;
+  hoverAt(last);
+}
 
 export function hoverAt(point: [number, number] | null) {
+  last = point;
   const next: Element[] = [];
   const top = point ? document.elementFromPoint(...point) : null;
   for (let element = top; element; element = element.parentElement) {

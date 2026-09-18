@@ -1,5 +1,6 @@
 import { useEffect, type CSSProperties } from "react";
 
+import { refreshHover } from "../lib/hover";
 import { baseNotch, cornerRadii, hitRect, notchSize } from "../lib/layout";
 import { native } from "../lib/native";
 import { useNow } from "../lib/useNow";
@@ -52,6 +53,14 @@ export function Notch() {
   useEffect(() => {
     native.setHitRect(hit.width, hit.height).catch(() => {});
   }, [hit.width, hit.height]);
+
+  // What is under a resting pointer changes when the panel opens or closes,
+  // and the shape it has just grown into is the one that counts.
+  useEffect(() => {
+    refreshHover();
+    const settled = window.setTimeout(refreshHover, 420);
+    return () => window.clearTimeout(settled);
+  }, [mode]);
 
   const style = {
     width: size.width,
