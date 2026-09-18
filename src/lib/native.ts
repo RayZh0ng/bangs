@@ -15,6 +15,7 @@ export interface Settings {
   expandOnHover: boolean;
   idleHandle: boolean;
   notifyClaudeIdle: boolean;
+  lyricsEnabled: boolean;
   display: string | null;
 }
 
@@ -42,6 +43,19 @@ export interface FileMeta {
   size: number;
   isDir: boolean;
   isImage: boolean;
+}
+
+export interface LyricLine {
+  /** Seconds into the track. */
+  at: number;
+  text: string;
+  translation: string | null;
+}
+
+export interface Lyrics {
+  /** The track these lines belong to. */
+  track: string;
+  lines: LyricLine[];
 }
 
 export type SessionStatus = "busy" | "waiting" | "idle";
@@ -97,6 +111,7 @@ export interface Bootstrap {
   screen: ScreenInfo;
   settings: Settings;
   media: MediaState | null;
+  lyrics: Lyrics;
   dev: DevState;
   paste: PasteState;
   dragIcon: string | null;
@@ -134,6 +149,8 @@ export const events = {
     listen<Settings>("settings://changed", (event) => handler(event.payload)),
   media: (handler: (media: MediaState | null) => void) =>
     listen<MediaState | null>("media://update", (event) => handler(event.payload)),
+  lyrics: (handler: (lyrics: Lyrics) => void) =>
+    listen<Lyrics>("bangs://lyrics", (event) => handler(event.payload)),
   dev: (handler: (dev: DevState) => void) =>
     listen<DevState>("bangs://dev", (event) => handler(event.payload)),
   paste: (handler: (paste: PasteState) => void) =>

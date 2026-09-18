@@ -1,5 +1,6 @@
 mod dev;
 mod geometry;
+mod lyrics;
 mod media;
 mod platform;
 #[cfg(target_os = "macos")]
@@ -17,6 +18,7 @@ use tauri::{AppHandle, Manager, State};
 
 use dev::{DevHub, DevState};
 use geometry::{Geometry, ScreenInfo};
+use lyrics::{Lyrics, LyricsHub};
 use media::{MediaCommand, MediaHub, MediaState};
 use paste::{PasteHub, PasteState};
 use settings::{Settings, SettingsState};
@@ -29,6 +31,7 @@ struct Bootstrap {
     screen: ScreenInfo,
     settings: Settings,
     media: Option<MediaState>,
+    lyrics: Lyrics,
     dev: DevState,
     paste: PasteState,
     drag_icon: Option<String>,
@@ -42,6 +45,7 @@ fn bootstrap(app: AppHandle) -> Bootstrap {
         screen: app.state::<Geometry>().screen(),
         settings: app.state::<SettingsState>().get(),
         media: app.state::<MediaHub>().current(),
+        lyrics: app.state::<LyricsHub>().current(),
         dev: app.state::<DevHub>().current(),
         paste: app.state::<PasteHub>().current(),
         drag_icon: shelf::drag_icon_path(&app),
@@ -100,6 +104,7 @@ pub fn run() {
             app.manage(settings::init(&handle));
             app.manage(Geometry::default());
             app.manage(MediaHub::default());
+            app.manage(LyricsHub::default());
             app.manage(DevHub::default());
             app.manage(PasteHub::default());
 
@@ -108,6 +113,7 @@ pub fn run() {
             geometry::spawn_display_watcher(handle.clone());
             geometry::spawn_cursor_tracker(handle.clone());
             media::start(handle.clone());
+            lyrics::start(handle.clone());
             dev::start(handle.clone());
             paste::start(handle.clone());
             tray::create(&handle)?;

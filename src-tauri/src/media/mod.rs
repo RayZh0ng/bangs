@@ -77,6 +77,7 @@ fn publish(app: &AppHandle, next: Option<MediaState>) {
         }
         *current = next.clone();
     }
+    crate::lyrics::sync(app, next.as_ref());
     let _ = app.emit("media://update", next);
 }
 

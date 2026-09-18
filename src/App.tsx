@@ -7,6 +7,7 @@ import { notify, playPing } from "./lib/alerts";
 import { hoverAt } from "./lib/hover";
 import { events, native, type DevState } from "./lib/native";
 import { useDev } from "./store/dev";
+import { useLyrics } from "./store/lyrics";
 import { useMedia } from "./store/media";
 import { usePaste } from "./store/paste";
 import { useNotch, type Section } from "./store/notch";
@@ -27,6 +28,7 @@ export default function App() {
       events.screen((screen) => useNotch.setState({ screen })),
       events.settings((settings) => useNotch.setState({ settings })),
       events.media((media) => useMedia.getState().update(media)),
+      events.lyrics((lyrics) => useLyrics.getState().update(lyrics)),
       events.dev(handleDev),
       events.paste((paste) => usePaste.getState().update(paste)),
       getCurrentWebview().onDragDropEvent((event) => void handleDragDrop(event.payload)),
@@ -38,6 +40,7 @@ export default function App() {
         const boot = await native.bootstrap();
         if (disposed) return;
         useMedia.getState().update(boot.media);
+        useLyrics.getState().update(boot.lyrics);
         useDev.getState().update(boot.dev);
         usePaste.getState().update(boot.paste);
         await useShelf.getState().refresh();

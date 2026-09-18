@@ -4,7 +4,8 @@ A dynamic notch for macOS and Windows, built with Tauri 2 + React by gxlself
 (bundle id `com.gxlself.bangs`). It sits at the top center of the screen, shows live activity next to
 the notch, and expands on hover.
 
-- **Now playing**: artwork, progress and play/pause/skip/seek for the current system media session
+- **Now playing**: artwork, progress and play/pause/skip/seek for the current system media session,
+  with timed lyrics — the line being sung shows next to the collapsed notch, three lines in the panel
 - **File shelf**: drop files on the notch to park them, drag them back out to other apps
 - **Dev panel**: Claude Code and Codex CLI sessions with busy/waiting/idle status in one list, and
   the projects VS Code and Cursor have open, grouped per editor with their git branch. Click a row
@@ -30,6 +31,9 @@ Build each platform on that platform (Windows installers cannot be produced on m
 
 The tray menu controls show/hide, expand on hover, idle bar, Claude alerts, display and launch at login.
 
+Lyrics come from QQ Music's public lyric endpoint: only the track title and artist are sent, every
+result is cached under the app cache directory, and the tray menu can turn the lookup off entirely.
+
 The clipboard panel asks Paste for its panel with `open pasteg://panel`, which Paste answers in
 `AppDelegate.application(_:open:)`; older Paste builds only get activated instead.
 
@@ -42,6 +46,7 @@ The clipboard panel asks Paste for its panel with `open pasteg://panel`, which P
 | Notch size | `NSScreen.safeAreaInsets` / `auxiliaryTop*Area` | Virtual only |
 | Dev panel | Claude Code / Codex session state and VS Code / Cursor state | Same, using Windows application-data paths |
 | Clipboard | Paste Core Data SQLite store, read-only | No Paste integration |
+| Lyrics | QQ Music lyric endpoint, cached on disk | Same |
 
 The host window is a fixed 640 x 280 transparent window in logical pixels. The visible notch animates
 inside it, and a native thread polls the cursor every 33 ms (`src-tauri/src/geometry.rs`) to:
@@ -78,12 +83,14 @@ src/                       React UI
     paste.ts               clipboard history and copy feedback
   lib/layout.ts            notch sizes per mode (keep WINDOW in sync with geometry.rs)
   lib/hover.ts             pointer-driven [data-hover] workaround
+    lyrics.ts              current lines and the line-at-time lookup
 src-tauri/src/
   lib.rs                   app setup, bootstrap and commands
   geometry.rs              window placement, hit rect, cursor tracker, display watcher
   platform/{mac,win}.rs     window setup, cursor, notch metrics, editor launch, full-screen handling
   media/{mod,mac,win}.rs    shared media state and platform now-playing providers
   dev.rs                   read-only Claude/Codex/editor polling and project opening
+  lyrics.rs                lyric lookup, LRC parsing and the on-disk cache
   paste.rs                 macOS read-only Paste store, text copy and panel hand-off
   paste_other.rs           unavailable Paste stub on other platforms
   shelf.rs                 file metadata, open/reveal, drag preview

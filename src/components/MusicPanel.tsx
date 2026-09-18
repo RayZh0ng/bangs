@@ -1,7 +1,9 @@
 import type { MouseEvent } from "react";
 
 import { clock } from "../lib/format";
+import type { LyricLine } from "../lib/native";
 import { useNow } from "../lib/useNow";
+import { lineAt, useLyrics } from "../store/lyrics";
 import { elapsedAt, useMedia } from "../store/media";
 import { Empty } from "./Empty";
 import { MusicIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon } from "./Icons";
@@ -9,7 +11,8 @@ import { MusicIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon } from "./Icons"
 export function MusicPanel() {
   const media = useMedia((s) => s.media);
   const send = useMedia((s) => s.send);
-  const now = useNow(500, !!media?.playing);
+  const lines = useLyrics((s) => s.lines);
+  const now = useNow(media?.playing ? 250 : 1000, !!media);
 
   if (!media) {
     return <Empty icon={<MusicIcon />} title="没有正在播放的音乐" hint="在任意播放器里开始播放，就会显示在这里" />;
@@ -18,6 +21,7 @@ export function MusicPanel() {
   const elapsed = elapsedAt(media, now);
   const duration = media.duration;
   const progress = duration && elapsed != null ? elapsed / duration : null;
+  const hasLyrics = lines.length > 0;
 
   const seek = (event: MouseEvent<HTMLDivElement>) => {
     if (!duration) return;
@@ -35,8 +39,11 @@ export function MusicPanel() {
       <div className="music__main">
         <div>
           <div className="music__title" title={media.title}>{media.title}</div>
-          <div className="music__artist">{media.artist || media.album || " "}</div>
+          {/* With lyrics the artist moves to the footer to make room. */}
+          {!hasLyrics && <div className="music__artist">{media.artist || media.album || " "}</div>}
         </div>
+
+        {hasLyrics && <LyricView lines={lines} elapsed={elapsed ?? 0} />}
 
         {progress != null && elapsed != null && duration ? (
           <div className="progress" onClick={seek}>
@@ -53,7 +60,9 @@ export function MusicPanel() {
         )}
 
         <div className="music__footer">
-          <span className="music__app">{media.appName}</span>
+          <span className="music__app">
+            {hasLyrics && media.artist ? `${media.artist} · ${media.appName}` : media.appName}
+          </span>
           <div className="controls">
             <button className="control" onClick={() => send({ action: "previous" })} title="上一首">
               <PreviousIcon width={18} height={18} />
@@ -67,6 +76,23 @@ export function MusicPanel() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The line being sung, with context above and below it. */
+function LyricView({ lines, elapsed }: { lines: LyricLine[]; elapsed: number }) {
+  const index = lineAt(lines, elapsed);
+  const line = lines[index];
+
+  return (
+    <div className="lyrics">
+      <div className="lyrics__line">{lines[index - 1]?.text ?? ""}</div>
+      <div key={index} className="lyrics__line is-current">
+        {line?.text ?? ""}
+      </div>
+      {/* The translation is more useful than the next line when there is one. */}
+      <div className="lyrics__line">{line?.translation ?? lines[index + 1]?.text ?? ""}</div>
     </div>
   );
 }

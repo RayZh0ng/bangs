@@ -266,6 +266,17 @@ img {
   white-space: nowrap;
 }
 
+.compact__lyric {
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: lyric-in 0.35s var(--ease-out);
+}
+
 /* ---------- Expanded ---------- */
 
 .expanded {
@@ -379,8 +390,8 @@ img {
   display: grid;
   flex: none;
   place-items: center;
-  width: 104px;
-  height: 104px;
+  width: 120px;
+  height: 120px;
   overflow: hidden;
   border-radius: 14px;
   background: var(--fill);
@@ -656,6 +667,43 @@ img {
 .button--primary {
   background: var(--tint);
   color: #061209;
+}
+
+.lyrics {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 62px;
+  overflow: hidden;
+}
+
+.lyrics__line {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 19px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.25s;
+}
+
+.lyrics__line.is-current {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  animation: lyric-in 0.35s var(--ease-out);
+}
+
+@keyframes lyric-in {
+  from {
+    opacity: 0.2;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ---------- Dev ---------- */

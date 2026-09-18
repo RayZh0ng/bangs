@@ -15,6 +15,8 @@ pub struct Settings {
     pub idle_handle: bool,
     /// Pop the notch open when a Claude Code session stops working.
     pub notify_claude_idle: bool,
+    /// Look up lyrics for the current track (sends title and artist to QQ Music).
+    pub lyrics_enabled: bool,
     /// `platform::display_label` of the monitor to attach to; `None` follows
     /// the primary monitor.
     pub display: Option<String>,
@@ -28,6 +30,7 @@ impl Default for Settings {
             // A black pill over browser tabs is intrusive on Windows.
             idle_handle: cfg!(windows),
             notify_claude_idle: true,
+            lyrics_enabled: true,
             display: None,
         }
     }

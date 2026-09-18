@@ -44,6 +44,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &CheckMenuItem::with_id(app, "visible", "显示刘海", true, settings.visible, None::<&str>)?,
             &CheckMenuItem::with_id(app, "hover", "悬停时展开", true, settings.expand_on_hover, None::<&str>)?,
             &CheckMenuItem::with_id(app, "idle-handle", "空闲时收成细条", true, settings.idle_handle, None::<&str>)?,
+            &CheckMenuItem::with_id(app, "lyrics", "显示歌词", true, settings.lyrics_enabled, None::<&str>)?,
             &CheckMenuItem::with_id(app, "notify-claude", "Claude 忙完时提醒", true, settings.notify_claude_idle, None::<&str>)?,
             &display,
             &PredefinedMenuItem::separator(app)?,
@@ -91,6 +92,12 @@ fn handle_menu(app: &AppHandle, id: &str) {
         }
         "hover" => {
             settings::update(app, |settings| settings.expand_on_hover = !settings.expand_on_hover);
+        }
+        "lyrics" => {
+            let (_, next) = settings::update(app, |settings| {
+                settings.lyrics_enabled = !settings.lyrics_enabled;
+            });
+            crate::lyrics::set_enabled(app, next.lyrics_enabled);
         }
         "notify-claude" => {
             settings::update(app, |settings| {

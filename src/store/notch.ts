@@ -71,7 +71,7 @@ export const useNotch = create<NotchStore>((set, get) => {
   return {
     ready: false,
     screen: { platform: "", hasNotch: false, notchWidth: 0, notchHeight: 0, menuBarHeight: 0, displayName: "" },
-    settings: { visible: true, expandOnHover: true, idleHandle: false, notifyClaudeIdle: true, display: null },
+    settings: { visible: true, expandOnHover: true, idleHandle: false, notifyClaudeIdle: true, lyricsEnabled: true, display: null },
     dragIcon: null,
     mode: "compact",
     section: "music",
