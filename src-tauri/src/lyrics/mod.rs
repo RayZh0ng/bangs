@@ -204,9 +204,49 @@ fn encode(value: &str) -> String {
 
 fn fetch(title: &str, artist: &str) -> Option<Vec<LyricLine>> {
     let client = client()?;
-    let query = format!("{title} {artist}");
+    // Spotify decorates its titles ("- Remastered 2011", "(feat. …)") and
+    // lists every artist; the plain form is what a lyric search understands,
+    // so it is the second thing to try.
+    let plain_title = plain_title(title);
+    let plain_artist = first_artist(artist);
+    let mut queries = vec![format!("{title} {artist}")];
+    let plain = format!("{plain_title} {plain_artist}");
+    if plain != queries[0] {
+        queries.push(plain);
+    }
+    for query in queries {
+        if let Some(lines) = lookup(&client, &query, &plain_title, &plain_artist) {
+            return Some(lines);
+        }
+    }
+    None
+}
+
+/// Drops the suffixes players add to a title: "Song - Live", "Song (feat. X)".
+fn plain_title(title: &str) -> String {
+    let title = title.split(" - ").next().unwrap_or(title);
+    let title = title.split(['(', '（', '[']).next().unwrap_or(title);
+    title.trim().to_string()
+}
+
+/// The lead artist; a search does worse with the whole billing.
+fn first_artist(artist: &str) -> String {
+    artist
+        .split([',', '&', '/', ';'])
+        .next()
+        .unwrap_or(artist)
+        .trim()
+        .to_string()
+}
+
+fn lookup(
+    client: &reqwest::blocking::Client,
+    query: &str,
+    title: &str,
+    artist: &str,
+) -> Option<Vec<LyricLine>> {
     let response = client
-        .get(format!("{SEARCH_URL}?w={}&format=json&n=5&p=1", encode(&query)))
+        .get(format!("{SEARCH_URL}?w={}&format=json&n=5&p=1", encode(query)))
         .header("Referer", REFERER)
         .send();
     let body = match response.and_then(|response| response.text()) {
@@ -230,7 +270,7 @@ fn fetch(title: &str, artist: &str) -> Option<Vec<LyricLine>> {
 
     // Per-character timing first; the plain LRC endpoint is the fallback.
     if let Some(id) = song["songid"].as_i64() {
-        if let Some(lines) = fetch_qrc(&client, id) {
+        if let Some(lines) = fetch_qrc(client, id) {
             return Some(lines);
         }
     }
@@ -242,7 +282,7 @@ fn fetch(title: &str, artist: &str) -> Option<Vec<LyricLine>> {
         if attempt > 0 {
             thread::sleep(Duration::from_millis(400));
         }
-        let Some(payload) = lyric_payload(&client, &song_mid) else { continue };
+        let Some(payload) = lyric_payload(client, &song_mid) else { continue };
         let lines = parse_lrc(payload["lyric"].as_str().unwrap_or_default());
         if lines.is_empty() {
             continue;

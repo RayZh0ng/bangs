@@ -5,5 +5,8 @@
   <!-- Menu bar utility: no Dock icon, no app switcher entry. -->
   <key>LSUIElement</key>
   <true/>
+  <!-- Shown when macOS asks whether Bangs may talk to Spotify. -->
+  <key>NSAppleEventsUsageDescription</key>
+  <string>用来读取 Spotify 正在播放的歌曲，并控制播放。</string>
 </dict>
 </plist>

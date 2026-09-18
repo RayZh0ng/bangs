@@ -3,7 +3,8 @@ use std::ptr;
 
 use objc2::rc::Retained;
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSCursor, NSScreen};
+use objc2_app_kit::{NSCursor, NSRunningApplication, NSScreen};
+use objc2_foundation::NSString;
 use tauri::{AppHandle, Manager, Monitor};
 use tauri_nspanel::{CollectionBehavior, ManagerExt, PanelLevel, StyleMask, WebviewWindowExt};
 
@@ -104,6 +105,13 @@ pub fn set_cursor(app: &AppHandle, shape: &str) {
         };
         cursor.set();
     });
+}
+
+/// Whether an app with this bundle identifier is running right now. Asking
+/// before talking to it keeps AppleScript from launching it.
+pub fn app_is_running(bundle_id: &str) -> bool {
+    let id = NSString::from_str(bundle_id);
+    !NSRunningApplication::runningApplicationsWithBundleIdentifier(&id).is_empty()
 }
 
 /// Global cursor position in points, top-left origin of the main display.

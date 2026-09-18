@@ -9,7 +9,7 @@ mod shelf;
 mod tray;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager};
 
 use dev::{DevHub, DevState};
 use geometry::{Geometry, ScreenInfo};
@@ -67,8 +67,8 @@ fn set_cursor(app: AppHandle, shape: String) {
 }
 
 #[tauri::command]
-fn media_command(hub: State<MediaHub>, command: MediaCommand) -> Result<(), String> {
-    hub.send(command)
+fn media_command(app: AppHandle, command: MediaCommand) -> Result<(), String> {
+    media::command(&app, command)
 }
 
 pub fn apply_visibility(app: &AppHandle, visible: bool) {
