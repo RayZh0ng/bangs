@@ -216,15 +216,16 @@ pub fn paste_show() -> Result<(), String> {
         return Ok(());
     }
 
-    // Paste builds older than the panel URL support only respond to a launch.
-    Command::new("/usr/bin/open")
+    // Paste builds without the panel URL can only be launched, which is not
+    // what was asked for — say so instead of silently doing something else.
+    let launched = Command::new("/usr/bin/open")
         .args(["-b", PASTE_BUNDLE_ID])
         .status()
-        .map_err(|error| error.to_string())
-        .and_then(|status| {
-            status
-                .success()
-                .then_some(())
-                .ok_or_else(|| "Paste 没有响应，更新 Paste 后再试".to_string())
-        })
+        .map(|status| status.success())
+        .unwrap_or(false);
+    Err(if launched {
+        "这个 Paste 版本还不支持直接弹面板，重新构建安装后即可".to_string()
+    } else {
+        "没找到 Paste".to_string()
+    })
 }
