@@ -9,7 +9,8 @@ the notch, and expands on hover.
 - **File shelf**: drop files on the notch to park them, drag them back out to other apps
 - **Dev panel**: Claude Code sessions with busy/waiting/idle status, plus VS Code / Cursor open
   projects with git branch when available. Click a row to open the project in the editor.
-  Optional alerts open and pin the panel when a session changes from busy to waiting or idle.
+  Optional alerts open the panel when a session changes from busy to waiting or idle, and close it
+  again after a few seconds if nobody looks.
 - **Clipboard (macOS)**: history from gxlself's own Paste app (`gxlself.paste-tool`).
   Click text to copy it back to the clipboard; image and file entries open Paste.
 
