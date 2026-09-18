@@ -9,7 +9,7 @@ import { events, native, type DevState } from "./lib/native";
 import { useDev } from "./store/dev";
 import { useLyrics } from "./store/lyrics";
 import { useMedia } from "./store/media";
-import { usePaste } from "./store/paste";
+import { useClipboard } from "./store/clipboard";
 import { useNotch, type Section } from "./store/notch";
 import { useShelf, type AddResult } from "./store/shelf";
 
@@ -30,7 +30,7 @@ export default function App() {
       events.media((media) => useMedia.getState().update(media)),
       events.lyrics((lyrics) => useLyrics.getState().update(lyrics)),
       events.dev(handleDev),
-      events.paste((paste) => usePaste.getState().update(paste)),
+      events.clipboard((clipboard) => useClipboard.getState().update(clipboard)),
       getCurrentWebview().onDragDropEvent((event) => void handleDragDrop(event.payload)),
     ];
 
@@ -42,7 +42,7 @@ export default function App() {
         useMedia.getState().update(boot.media);
         useLyrics.getState().update(boot.lyrics);
         useDev.getState().update(boot.dev);
-        usePaste.getState().update(boot.paste);
+        useClipboard.getState().update(boot.clipboard);
         await useShelf.getState().refresh();
         useNotch.getState().init(boot);
         // Not requestAnimationFrame: hidden webviews never run frame callbacks.

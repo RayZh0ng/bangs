@@ -98,6 +98,8 @@ export interface DevState {
 }
 
 export type ClipKind = "text" | "image" | "files";
+/** Where the history comes from: the Paste app, or Bangs itself. */
+export type ClipSource = "paste" | "builtin";
 
 export interface ClipItem {
   id: number;
@@ -111,8 +113,10 @@ export interface ClipItem {
   createdAt: number;
 }
 
-export interface PasteState {
+export interface ClipboardState {
+  /** False on macOS when Paste is not installed. */
   available: boolean;
+  source: ClipSource;
   items: ClipItem[];
 }
 
@@ -122,7 +126,7 @@ export interface Bootstrap {
   media: MediaState | null;
   lyrics: Lyrics;
   dev: DevState;
-  paste: PasteState;
+  clipboard: ClipboardState;
   dragIcon: string | null;
 }
 
@@ -138,8 +142,10 @@ export const native = {
   setHitRect: (width: number, height: number) => invoke<void>("set_hit_rect", { width, height }),
   media: (command: MediaCommand) => invoke<void>("media_command", { command }),
   openProject: (path: string, editor?: string) => invoke<void>("open_project", { path, editor }),
-  pasteCopy: (id: number) => invoke<void>("paste_copy", { id }),
-  pasteShow: () => invoke<void>("paste_show"),
+  clipboardUse: (id: number) => invoke<void>("clipboard_use", { id }),
+  clipboardOpen: () => invoke<void>("clipboard_open"),
+  clipboardClear: () => invoke<void>("clipboard_clear"),
+  clipboardInstall: () => invoke<void>("clipboard_install"),
   inspectFiles: (paths: string[]) => invoke<FileMeta[]>("shelf_inspect", { paths }),
   openFile: (path: string) => invoke<void>("open_file", { path }),
   revealFile: (path: string) => invoke<void>("reveal_file", { path }),
@@ -162,6 +168,6 @@ export const events = {
     listen<Lyrics>("bangs://lyrics", (event) => handler(event.payload)),
   dev: (handler: (dev: DevState) => void) =>
     listen<DevState>("bangs://dev", (event) => handler(event.payload)),
-  paste: (handler: (paste: PasteState) => void) =>
-    listen<PasteState>("bangs://paste", (event) => handler(event.payload)),
+  clipboard: (handler: (clipboard: ClipboardState) => void) =>
+    listen<ClipboardState>("bangs://clipboard", (event) => handler(event.payload)),
 };

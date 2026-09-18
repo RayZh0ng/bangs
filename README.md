@@ -11,8 +11,9 @@ the notch, and expands on hover.
   the projects VS Code and Cursor have open, grouped per editor with their git branch. Click a row
   to open that project in the editor. Optional alerts open the panel when a session changes from
   busy to waiting or idle, and close it again after a few seconds if nobody looks.
-- **Clipboard (macOS)**: history from gxlself's own Paste app (`gxlself.paste-tool`).
-  Click text to put it back on the clipboard; image and file entries hand over to Paste's own panel.
+- **Clipboard**: on macOS the panel mirrors gxlself's own Paste app (`gxlself.paste-tool`) and
+  offers to install it when it is missing; on Windows, where there is no Paste, Bangs records the
+  history itself. Click an entry to put it back on the clipboard.
 
 Screens with a hardware notch get wings around it; other screens get a virtual notch (or a thin bar,
 see the tray menu).
@@ -45,7 +46,7 @@ The clipboard panel asks Paste for its panel with `open pasteg://panel`, which P
 | Now playing | MediaRemote, loaded into `/usr/bin/perl` (see below) | `GlobalSystemMediaTransportControlsSessionManager` |
 | Notch size | `NSScreen.safeAreaInsets` / `auxiliaryTop*Area` | Virtual only |
 | Dev panel | Claude Code / Codex session state and VS Code / Cursor state | Same, using Windows application-data paths |
-| Clipboard | Paste Core Data SQLite store, read-only | No Paste integration |
+| Clipboard | Paste's Core Data store, read-only | Bangs' own history |
 | Lyrics | QQ Music lyric endpoint, cached on disk | Same |
 
 The host window is a fixed 640 x 280 transparent window in logical pixels. The visible notch animates
@@ -67,20 +68,26 @@ The dev integration polls every two seconds, reading `~/.claude/sessions/*.json`
 processes to ignore stale sessions and closed editors. Opening a project uses the editor on macOS
 or its `code` / `cursor` CLI on Windows, with a folder-reveal fallback.
 
-The Paste integration opens the user's local Core Data store (`PasteTool.sqlite`) read-only and
-polls the latest 24 entries every three seconds. It checks Paste's sandbox container, then
-`~/Library/Application Support/Paste/`. The tab appears only when the store is readable.
-Bangs never writes to the Paste database; copying text writes to the system clipboard.
+On macOS the clipboard panel opens Paste's local Core Data store (`PasteTool.sqlite`) read-only and
+polls the latest 24 entries every three seconds, checking Paste's sandbox container first. Bangs
+never writes to that database; picking an entry writes to the system clipboard, and image and file
+entries hand over to Paste's own panel (`pasteg://panel`).
+
+On Windows there is no Paste, so Bangs keeps the history: it polls `GetClipboardSequenceNumber`,
+stores what changed (text and dropped file paths, up to 200 entries) in the app data directory, and
+writes an entry back when it is picked. Content that apps mark private with
+`ExcludeClipboardContentFromMonitorProcessing` or `CanIncludeInClipboardHistory` — password managers
+do — is skipped, and the tray menu can stop the recording altogether.
 
 ```text
 src/                       React UI
   App.tsx                  native events, drag/drop and agent alerts
   components/              Notch shell, compact/expanded views, music and shelf panels
     DevPanel.tsx           agent sessions and per-editor project rows
-    PastePanel.tsx         clipboard history and copy/open actions
+    ClipboardPanel.tsx     clipboard history, copy, clear and install actions
   store/                   zustand stores: notch state machine, media, shelf
     dev.ts                 agent sessions, workspaces and busy-to-idle/waiting detection
-    paste.ts               clipboard history and copy feedback
+    clipboard.ts           clipboard history, copy feedback and platform actions
   lib/layout.ts            notch sizes per mode (keep WINDOW in sync with geometry.rs)
   lib/hover.ts             pointer-driven [data-hover] workaround
     lyrics.ts              current lines and the line-at-time lookup
@@ -91,8 +98,9 @@ src-tauri/src/
   media/{mod,mac,win}.rs    shared media state and platform now-playing providers
   dev.rs                   read-only Claude/Codex/editor polling and project opening
   lyrics.rs                lyric lookup, LRC parsing and the on-disk cache
-  paste.rs                 macOS read-only Paste store, text copy and panel hand-off
-  paste_other.rs           unavailable Paste stub on other platforms
+  clipboard/mod.rs         shared clipboard panel state and commands
+  clipboard/mac.rs         read-only Paste store, copy and panel hand-off
+  clipboard/win.rs         Bangs' own clipboard history
   shelf.rs                 file metadata, open/reveal, drag preview
   tray.rs, settings.rs      tray menu and persisted settings
 scripts/generate-icons.swift  app/tray/drag icons (then `pnpm tauri icon src-tauri/icons/app-icon.png`)

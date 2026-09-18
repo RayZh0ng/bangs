@@ -1,0 +1,138 @@
+//! The clipboard panel. On macOS it mirrors the user's own Paste app; on
+//! Windows, where there is no Paste, Bangs keeps the history itself.
+
+use std::sync::Mutex;
+
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter, Manager};
+
+#[cfg(target_os = "macos")]
+mod mac;
+#[cfg(windows)]
+mod win;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClipKind {
+    Text,
+    Image,
+    Files,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipItem {
+    pub id: i64,
+    pub kind: ClipKind,
+    pub preview: String,
+    /// The app the content came from.
+    pub app: Option<String>,
+    /// That app's icon as a data URL, when the source has one.
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub pinned: bool,
+    /// Unix milliseconds.
+    pub created_at: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ClipSource {
+    /// Read from the Paste app, which owns the history.
+    Paste,
+    /// Bangs records the history itself.
+    Builtin,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClipboardState {
+    /// False on macOS when Paste is not installed yet.
+    pub available: bool,
+    pub source: ClipSource,
+    pub items: Vec<ClipItem>,
+}
+
+impl Default for ClipboardState {
+    fn default() -> Self {
+        Self {
+            available: false,
+            source: if cfg!(target_os = "macos") { ClipSource::Paste } else { ClipSource::Builtin },
+            items: Vec::new(),
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct ClipboardHub(Mutex<ClipboardState>);
+
+impl ClipboardHub {
+    pub fn current(&self) -> ClipboardState {
+        self.0.lock().unwrap().clone()
+    }
+}
+
+fn publish(app: &AppHandle, next: ClipboardState) {
+    {
+        let hub = app.state::<ClipboardHub>();
+        let mut current = hub.0.lock().unwrap();
+        if *current == next {
+            return;
+        }
+        *current = next.clone();
+    }
+    let _ = app.emit("bangs://clipboard", next);
+}
+
+pub fn start(app: AppHandle) {
+    #[cfg(target_os = "macos")]
+    mac::start(app);
+    #[cfg(windows)]
+    win::start(app);
+    #[cfg(not(any(target_os = "macos", windows)))]
+    let _ = app;
+}
+
+/// Puts an entry back on the clipboard.
+#[tauri::command]
+pub fn clipboard_use(app: AppHandle, id: i64) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    return mac::copy(app, id);
+    #[cfg(windows)]
+    return win::copy(app, id);
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        let _ = (app, id);
+        Err("剪贴板在这个平台上不可用".into())
+    }
+}
+
+/// macOS only: hands over to Paste's own panel, which can paste for you.
+#[tauri::command]
+pub fn clipboard_open() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    return mac::show_panel();
+    #[cfg(not(target_os = "macos"))]
+    Err("这个平台没有外部剪贴板面板".into())
+}
+
+/// Windows only: Bangs owns that history, so it can drop it.
+#[tauri::command]
+pub fn clipboard_clear(app: AppHandle) -> Result<(), String> {
+    #[cfg(windows)]
+    return win::clear(app);
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        Err("历史由 Paste 管理，请在 Paste 里清空".into())
+    }
+}
+
+/// macOS only: Paste is missing, so point at where to get it.
+#[tauri::command]
+pub fn clipboard_install() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    return mac::open_download_page();
+    #[cfg(not(target_os = "macos"))]
+    Err("不需要安装".into())
+}

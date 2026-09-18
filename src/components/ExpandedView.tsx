@@ -1,13 +1,15 @@
 import type { ComponentType, SVGProps } from "react";
 
+
+
 import type { Size } from "../lib/layout";
 import { useNotch, type Section } from "../store/notch";
 import { DevPanel } from "./DevPanel";
 import { ClipboardIcon, CodeIcon, MusicIcon, PinIcon, ShelfIcon } from "./Icons";
 import { MusicPanel } from "./MusicPanel";
-import { PastePanel } from "./PastePanel";
+import { ClipboardPanel } from "./ClipboardPanel";
 import { ShelfPanel } from "./ShelfPanel";
-import { usePaste } from "../store/paste";
+import { useClipboard } from "../store/clipboard";
 
 const SECTIONS: { id: Section; label: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
   { id: "music", label: "音乐", Icon: MusicIcon },
@@ -25,9 +27,11 @@ interface Props {
 export function ExpandedView({ base, notchGap }: Props) {
   const section = useNotch((s) => s.section);
   const pinned = useNotch((s) => s.pinned);
-  const hasPaste = usePaste((state) => state.available);
+  const hasClipboard = useClipboard((state) => state.available);
+  const isMac = useNotch((s) => s.screen.platform === "macos");
   const { selectSection, togglePin } = useNotch.getState();
-  const sections = SECTIONS.filter((entry) => entry.id !== "paste" || hasPaste);
+  // The clipboard tab stays visible on macOS without Paste, to offer it.
+  const sections = SECTIONS.filter((entry) => entry.id !== "paste" || hasClipboard || isMac);
 
   return (
     <div className="expanded">
@@ -61,7 +65,7 @@ export function ExpandedView({ base, notchGap }: Props) {
         {section === "music" && <MusicPanel />}
         {section === "shelf" && <ShelfPanel />}
         {section === "dev" && <DevPanel />}
-        {section === "paste" && <PastePanel />}
+        {section === "paste" && <ClipboardPanel />}
       </main>
     </div>
   );

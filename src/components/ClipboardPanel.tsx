@@ -1,7 +1,7 @@
 import { relativeTime } from "../lib/format";
 import type { ClipItem } from "../lib/native";
 import { useNow } from "../lib/useNow";
-import { usePaste } from "../store/paste";
+import { useClipboard } from "../store/clipboard";
 import { Empty } from "./Empty";
 import { ClipboardIcon } from "./Icons";
 
@@ -11,17 +11,27 @@ const KIND_LABEL: Record<ClipItem["kind"], string | null> = {
   files: "文件",
 };
 
-export function PastePanel() {
-  const items = usePaste((state) => state.items);
-  const available = usePaste((state) => state.available);
-  const copiedId = usePaste((state) => state.copiedId);
-  const use = usePaste((state) => state.use);
-  const notice = usePaste((state) => state.notice);
-  const showPanel = usePaste((state) => state.showPanel);
+export function ClipboardPanel() {
+  const items = useClipboard((state) => state.items);
+  const available = useClipboard((state) => state.available);
+  const source = useClipboard((state) => state.source);
+  const copiedId = useClipboard((state) => state.copiedId);
+  const notice = useClipboard((state) => state.notice);
+  const { use, showPanel, clear, install } = useClipboard.getState();
   const now = useNow(20_000);
 
+  // Only macOS has an external history, and only there can it be missing.
   if (!available) {
-    return <Empty icon={<ClipboardIcon />} title="没找到 Paste" hint="装上 Paste 并复制过内容后，历史会显示在这里" />;
+    return (
+      <div className="empty">
+        <ClipboardIcon />
+        <div className="empty__title">还没有剪贴板历史</div>
+        <div className="empty__hint">装上 Paste，复制过的内容就会出现在这里</div>
+        <button className="button" onClick={() => void install()}>
+          去安装 Paste
+        </button>
+      </div>
+    );
   }
   if (!items.length) {
     return <Empty icon={<ClipboardIcon />} title="剪贴板历史是空的" hint="复制点什么，就会出现在这里" />;
@@ -50,10 +60,16 @@ export function PastePanel() {
         ))}
       </div>
       <div className="shelf__footer">
-        <span>{notice ?? "点一下放回剪贴板"}</span>
-        <button className="link-button" onClick={() => void showPanel()}>
-          唤出 Paste
-        </button>
+        <span>{notice ?? (source === "paste" ? "点一下放回剪贴板" : `${items.length} 条 · 点一下放回剪贴板`)}</span>
+        {source === "paste" ? (
+          <button className="link-button" onClick={() => void showPanel()}>
+            唤出 Paste
+          </button>
+        ) : (
+          <button className="link-button" onClick={() => void clear()}>
+            清空
+          </button>
+        )}
       </div>
     </div>
   );

@@ -17,6 +17,8 @@ pub struct Settings {
     pub notify_claude_idle: bool,
     /// Look up lyrics for the current track (sends title and artist to QQ Music).
     pub lyrics_enabled: bool,
+    /// Windows only: record the clipboard into the panel's history.
+    pub clipboard_history: bool,
     /// `platform::display_label` of the monitor to attach to; `None` follows
     /// the primary monitor.
     pub display: Option<String>,
@@ -31,6 +33,7 @@ impl Default for Settings {
             idle_handle: cfg!(windows),
             notify_claude_idle: true,
             lyrics_enabled: true,
+            clipboard_history: true,
             display: None,
         }
     }

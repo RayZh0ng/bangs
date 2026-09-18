@@ -5,15 +5,15 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
 use base64::Engine;
 use rusqlite::{Connection, OpenFlags};
-use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::AppHandle;
 use tauri_plugin_clipboard_manager::ClipboardExt;
+
+use super::{publish, ClipItem, ClipKind, ClipSource, ClipboardState};
 
 const POLL: Duration = Duration::from_secs(3);
 const LIMIT: i64 = 24;
@@ -21,44 +21,7 @@ const PREVIEW_CHARS: usize = 180;
 /// Core Data stores dates as seconds since 2001-01-01.
 const CORE_DATA_EPOCH: f64 = 978_307_200.0;
 const PASTE_BUNDLE_ID: &str = "gxlself.paste-tool";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ClipKind {
-    Text,
-    Image,
-    Files,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ClipItem {
-    pub id: i64,
-    pub kind: ClipKind,
-    pub preview: String,
-    pub app: Option<String>,
-    /// Source app icon as a data URL.
-    pub icon: Option<String>,
-    pub pinned: bool,
-    /// Unix milliseconds.
-    pub created_at: f64,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PasteState {
-    pub available: bool,
-    pub items: Vec<ClipItem>,
-}
-
-#[derive(Default)]
-pub struct PasteHub(Mutex<PasteState>);
-
-impl PasteHub {
-    pub fn current(&self) -> PasteState {
-        self.0.lock().unwrap().clone()
-    }
-}
+const DOWNLOAD_PAGE: &str = "https://paste.gxlself.com";
 
 fn store_path() -> Option<PathBuf> {
     let home = PathBuf::from(std::env::var_os("HOME")?);
@@ -158,27 +121,15 @@ pub fn start(app: AppHandle) {
             }
 
             let next = match connection.as_ref().map(|db| read_items(db, &icons)) {
-                Some(Ok(items)) => PasteState { available: true, items },
+                Some(Ok(items)) => ClipboardState { available: true, source: ClipSource::Paste, items },
                 Some(Err(error)) => {
-                    eprintln!("[paste] read failed: {error}");
+                    eprintln!("[clipboard] read failed: {error}");
                     connection = None;
-                    PasteState::default()
+                    ClipboardState::default()
                 }
-                None => PasteState::default(),
+                None => ClipboardState::default(),
             };
-
-            let changed = {
-                let hub = app.state::<PasteHub>();
-                let mut current = hub.0.lock().unwrap();
-                let changed = *current != next;
-                if changed {
-                    *current = next.clone();
-                }
-                changed
-            };
-            if changed {
-                let _ = app.emit("bangs://paste", next);
-            }
+            publish(&app, next);
             thread::sleep(POLL);
         }
     });
@@ -186,8 +137,7 @@ pub fn start(app: AppHandle) {
 
 /// Puts a history entry back on the clipboard. Images and files are left to
 /// Paste itself, which owns the richer pasteboard types.
-#[tauri::command]
-pub fn paste_copy(app: AppHandle, id: i64) -> Result<(), String> {
+pub fn copy(app: AppHandle, id: i64) -> Result<(), String> {
     let connection = connect().ok_or("Paste 数据库不可用")?;
     let text: Option<String> = connection
         .query_row(
@@ -206,8 +156,7 @@ pub fn paste_copy(app: AppHandle, id: i64) -> Result<(), String> {
 const PANEL_URL: &str = "pasteg://panel";
 
 /// Asks Paste to show its own clipboard panel.
-#[tauri::command]
-pub fn paste_show() -> Result<(), String> {
+pub fn show_panel() -> Result<(), String> {
     let opened = Command::new("/usr/bin/open")
         .arg(PANEL_URL)
         .status()
@@ -228,4 +177,13 @@ pub fn paste_show() -> Result<(), String> {
     } else {
         "没找到 Paste".to_string()
     })
+}
+
+/// Paste is not installed: send the user to its download page.
+pub fn open_download_page() -> Result<(), String> {
+    Command::new("/usr/bin/open")
+        .arg(DOWNLOAD_PAGE)
+        .status()
+        .map_err(|error| error.to_string())
+        .and_then(|status| status.success().then_some(()).ok_or_else(|| "无法打开下载页".to_string()))
 }

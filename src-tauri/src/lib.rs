@@ -1,14 +1,9 @@
+mod clipboard;
 mod dev;
 mod geometry;
 mod lyrics;
 mod media;
 mod platform;
-#[cfg(target_os = "macos")]
-#[path = "paste.rs"]
-mod paste;
-#[cfg(not(target_os = "macos"))]
-#[path = "paste_other.rs"]
-mod paste;
 mod settings;
 mod shelf;
 mod tray;
@@ -20,7 +15,7 @@ use dev::{DevHub, DevState};
 use geometry::{Geometry, ScreenInfo};
 use lyrics::{Lyrics, LyricsHub};
 use media::{MediaCommand, MediaHub, MediaState};
-use paste::{PasteHub, PasteState};
+use clipboard::{ClipboardHub, ClipboardState};
 use settings::{Settings, SettingsState};
 
 pub const MAIN_WINDOW: &str = "main";
@@ -33,7 +28,7 @@ struct Bootstrap {
     media: Option<MediaState>,
     lyrics: Lyrics,
     dev: DevState,
-    paste: PasteState,
+    clipboard: ClipboardState,
     drag_icon: Option<String>,
 }
 
@@ -47,7 +42,7 @@ fn bootstrap(app: AppHandle) -> Bootstrap {
         media: app.state::<MediaHub>().current(),
         lyrics: app.state::<LyricsHub>().current(),
         dev: app.state::<DevHub>().current(),
-        paste: app.state::<PasteHub>().current(),
+        clipboard: app.state::<ClipboardHub>().current(),
         drag_icon: shelf::drag_icon_path(&app),
     }
 }
@@ -101,7 +96,7 @@ pub fn run() {
             app.manage(MediaHub::default());
             app.manage(LyricsHub::default());
             app.manage(DevHub::default());
-            app.manage(PasteHub::default());
+            app.manage(ClipboardHub::default());
 
             platform::prepare_window(&handle)?;
             geometry::place_window(&handle);
@@ -110,7 +105,7 @@ pub fn run() {
             media::start(handle.clone());
             lyrics::start(handle.clone());
             dev::start(handle.clone());
-            paste::start(handle.clone());
+            clipboard::start(handle.clone());
             tray::create(&handle)?;
             Ok(())
         })
@@ -120,8 +115,10 @@ pub fn run() {
             set_hit_rect,
             media_command,
             dev::open_project,
-            paste::paste_copy,
-            paste::paste_show,
+            clipboard::clipboard_use,
+            clipboard::clipboard_open,
+            clipboard::clipboard_clear,
+            clipboard::clipboard_install,
             shelf::shelf_inspect,
             shelf::open_file,
             shelf::reveal_file,
