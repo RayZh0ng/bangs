@@ -27,6 +27,6 @@ pub fn paste_copy(_app: AppHandle, _id: i64) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn paste_open() -> Result<(), String> {
+pub fn paste_show() -> Result<(), String> {
     Err("Paste is only available on macOS".into())
 }

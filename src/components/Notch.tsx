@@ -7,7 +7,6 @@ import { waitingSessions, useDev } from "../store/dev";
 import { isMediaLive, useMedia } from "../store/media";
 import { useNotch } from "../store/notch";
 import { useShelf } from "../store/shelf";
-import { isTimerActive, timerRemaining, useTimer } from "../store/timer";
 import { CompactView, type Activity } from "./CompactView";
 import { DropView } from "./DropView";
 import { ExpandedView } from "./ExpandedView";
@@ -19,23 +18,17 @@ export function Notch() {
   const hovering = useNotch((s) => s.hovering);
   const media = useMedia((s) => s.media);
   const lastActiveAt = useMedia((s) => s.lastActiveAt);
-  const timer = useTimer();
   const shelfCount = useShelf((s) => s.items.length);
   const waiting = useDev((s) => waitingSessions(s.sessions).length);
 
-  const timerActive = isTimerActive(timer);
-  const now = useNow(timerActive && timer.endsAt !== null ? 250 : 5_000);
+  const now = useNow(5_000);
 
   const activity: Activity = {
     attention: waiting,
     media: isMediaLive(media, lastActiveAt, now) ? media : null,
-    timer: timerActive
-      ? { kind: timer.kind, remaining: timerRemaining(timer, now), paused: timer.pausedRemaining !== null }
-      : null,
     shelfCount,
   };
-  const hasActivity =
-    activity.attention > 0 || !!activity.media || !!activity.timer || activity.shelfCount > 0;
+  const hasActivity = activity.attention > 0 || !!activity.media || activity.shelfCount > 0;
 
   const base = baseNotch(screen);
   const size = notchSize(mode, screen, settings, hasActivity);

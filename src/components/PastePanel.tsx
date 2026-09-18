@@ -1,5 +1,5 @@
 import { relativeTime } from "../lib/format";
-import { native, type ClipItem } from "../lib/native";
+import type { ClipItem } from "../lib/native";
 import { useNow } from "../lib/useNow";
 import { usePaste } from "../store/paste";
 import { Empty } from "./Empty";
@@ -16,6 +16,8 @@ export function PastePanel() {
   const available = usePaste((state) => state.available);
   const copiedId = usePaste((state) => state.copiedId);
   const use = usePaste((state) => state.use);
+  const notice = usePaste((state) => state.notice);
+  const showPanel = usePaste((state) => state.showPanel);
   const now = useNow(20_000);
 
   if (!available) {
@@ -27,7 +29,7 @@ export function PastePanel() {
 
   return (
     <div className="paste">
-      <div className="rows">
+      <div className="rows rows--snap">
         {items.map((item) => (
           <button key={item.id} className="row" title={item.preview} onClick={() => void use(item)}>
             {item.icon ? (
@@ -38,7 +40,7 @@ export function PastePanel() {
             <span className="row__main">
               <span className="row__title row__title--plain">
                 {KIND_LABEL[item.kind] && <span className="tag tag--soft">{KIND_LABEL[item.kind]}</span>}
-                {item.preview === KIND_LABEL[item.kind] ? item.app : item.preview}
+                {item.preview === KIND_LABEL[item.kind] ? "" : item.preview}
               </span>
             </span>
             <span className={`row__meta${copiedId === item.id ? " row__meta--ok" : ""}`}>
@@ -48,9 +50,9 @@ export function PastePanel() {
         ))}
       </div>
       <div className="shelf__footer">
-        <span>点一下放回剪贴板</span>
-        <button className="link-button" onClick={() => native.pasteOpen().catch(() => {})}>
-          打开 Paste
+        <span>{notice ?? "点一下放回剪贴板"}</span>
+        <button className="link-button" onClick={() => void showPanel()}>
+          唤出 Paste
         </button>
       </div>
     </div>

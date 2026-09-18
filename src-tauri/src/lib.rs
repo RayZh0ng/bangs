@@ -58,6 +58,11 @@ fn notch_ready(app: AppHandle) {
 }
 
 #[tauri::command]
+fn debug_log(message: String) {
+    eprintln!("[web] {message}");
+}
+
+#[tauri::command]
 fn set_hit_rect(geometry: State<Geometry>, width: f64, height: f64) {
     geometry.set_hit_rect(width, height);
 }
@@ -111,11 +116,12 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             bootstrap,
             notch_ready,
+            debug_log,
             set_hit_rect,
             media_command,
             dev::open_project,
             paste::paste_copy,
-            paste::paste_open,
+            paste::paste_show,
             shelf::shelf_inspect,
             shelf::open_file,
             shelf::reveal_file,

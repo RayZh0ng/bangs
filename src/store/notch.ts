@@ -4,9 +4,8 @@ import type { Mode } from "../lib/layout";
 import type { Bootstrap, ScreenInfo, Settings } from "../lib/native";
 import { waitingSessions, useDev } from "./dev";
 import { isMediaLive, useMedia } from "./media";
-import { isTimerActive, useTimer } from "./timer";
 
-export type Section = "music" | "timer" | "shelf" | "dev" | "paste";
+export type Section = "music" | "shelf" | "dev" | "paste";
 
 const COLLAPSE_DELAY_MS = 450;
 const DROP_LEAVE_DELAY_MS = 150;
@@ -65,7 +64,6 @@ export const useNotch = create<NotchStore>((set, get) => {
     if (waitingSessions(useDev.getState().sessions).length) return "dev";
     const { media, lastActiveAt } = useMedia.getState();
     if (media?.playing) return "music";
-    if (isTimerActive(useTimer.getState())) return "timer";
     if (isMediaLive(media, lastActiveAt, Date.now())) return "music";
     return get().section;
   };

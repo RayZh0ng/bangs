@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
@@ -199,11 +200,31 @@ pub fn paste_copy(app: AppHandle, id: i64) -> Result<(), String> {
     app.clipboard().write_text(text).map_err(|error| error.to_string())
 }
 
+/// Paste registers this scheme for exactly this purpose (see its AppDelegate):
+/// it toggles the clipboard panel without changing which app is in front, so
+/// whatever the user picks still pastes where they were typing.
+const PANEL_URL: &str = "pasteg://panel";
+
+/// Asks Paste to show its own clipboard panel.
 #[tauri::command]
-pub fn paste_open() -> Result<(), String> {
-    std::process::Command::new("/usr/bin/open")
+pub fn paste_show() -> Result<(), String> {
+    let opened = Command::new("/usr/bin/open")
+        .arg(PANEL_URL)
+        .status()
+        .map_err(|error| error.to_string())?;
+    if opened.success() {
+        return Ok(());
+    }
+
+    // Paste builds older than the panel URL support only respond to a launch.
+    Command::new("/usr/bin/open")
         .args(["-b", PASTE_BUNDLE_ID])
         .status()
         .map_err(|error| error.to_string())
-        .and_then(|status| status.success().then_some(()).ok_or_else(|| "无法打开 Paste".to_string()))
+        .and_then(|status| {
+            status
+                .success()
+                .then_some(())
+                .ok_or_else(|| "Paste 没有响应，更新 Paste 后再试".to_string())
+        })
 }

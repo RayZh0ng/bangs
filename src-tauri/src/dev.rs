@@ -1,18 +1,25 @@
 //! What the coding tools on this machine are doing: Claude Code sessions
-//! (`~/.claude/sessions/*.json`) and the projects VS Code / Cursor have open.
+//! (`~/.claude/sessions/*.json`), Codex CLI sessions (`~/.codex/sessions`
+//! rollout logs) and the projects VS Code / Cursor have open.
 
-use std::collections::BTreeMap;
-use std::fs;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System, UpdateKind};
 use tauri::{AppHandle, Emitter, Manager};
 
 const POLL: Duration = Duration::from_secs(2);
+/// How far back a Codex rollout counts as a session worth showing.
+const CODEX_RECENT: Duration = Duration::from_secs(6 * 60 * 60);
+/// A Codex turn that stopped writing this long ago is treated as finished,
+/// in case the process died mid-task.
+const CODEX_STALE: Duration = Duration::from_secs(5 * 60);
 /// Sessions of the Claude desktop app live in throwaway folders.
 const SCRATCH_MARKER: &str = "/scratch-workspaces/";
 
@@ -26,10 +33,18 @@ pub enum SessionStatus {
     Idle,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Agent {
+    Claude,
+    Codex,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ClaudeSession {
+pub struct AgentSession {
     pub id: String,
+    pub agent: Agent,
     pub name: String,
     pub path: String,
     pub project: String,
@@ -56,7 +71,7 @@ pub struct EditorWorkspace {
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DevState {
-    pub sessions: Vec<ClaudeSession>,
+    pub sessions: Vec<AgentSession>,
     pub workspaces: Vec<EditorWorkspace>,
 }
 
@@ -142,7 +157,7 @@ fn project_name(path: &str) -> String {
         .unwrap_or_else(|| path.to_string())
 }
 
-fn read_sessions(system: &System) -> Vec<ClaudeSession> {
+fn read_claude_sessions(system: &System) -> Vec<AgentSession> {
     let Some(dir) = home().map(|home| home.join(".claude/sessions")) else {
         return Vec::new();
     };
@@ -150,7 +165,7 @@ fn read_sessions(system: &System) -> Vec<ClaudeSession> {
         return Vec::new();
     };
 
-    let mut sessions: Vec<ClaudeSession> = entries
+    entries
         .flatten()
         .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "json"))
         .filter_map(|entry| {
@@ -167,7 +182,8 @@ fn read_sessions(system: &System) -> Vec<ClaudeSession> {
                 "waiting" => SessionStatus::Waiting,
                 _ => SessionStatus::Idle,
             };
-            Some(ClaudeSession {
+            Some(AgentSession {
+                agent: Agent::Claude,
                 project: project_name(&file.cwd),
                 name: file.name,
                 path: file.cwd,
@@ -177,9 +193,11 @@ fn read_sessions(system: &System) -> Vec<ClaudeSession> {
                 id: file.session_id,
             })
         })
-        .collect();
+        .collect()
+}
 
-    // Things that need attention first, then whatever changed most recently.
+/// Sorts attention first, then recency, and trims the idle tail.
+fn prioritize(sessions: &mut Vec<AgentSession>) {
     sessions.sort_by(|a, b| {
         let rank = |status| match status {
             SessionStatus::Waiting => 0,
@@ -199,7 +217,148 @@ fn read_sessions(system: &System) -> Vec<ClaudeSession> {
         idle += 1;
         idle <= MAX_IDLE_SESSIONS
     });
-    sessions
+}
+
+/// Alternates between the two agents so a busy one cannot push the other out
+/// of the visible rows; each list is already sorted by urgency.
+fn interleave(claude: Vec<AgentSession>, codex: Vec<AgentSession>) -> Vec<AgentSession> {
+    let mut claude = claude.into_iter();
+    let mut codex = codex.into_iter();
+    let mut merged = Vec::new();
+    loop {
+        match (claude.next(), codex.next()) {
+            (None, None) => return merged,
+            (first, second) => merged.extend(first.into_iter().chain(second)),
+        }
+    }
+}
+
+/// Codex appends to one rollout log per session, so the file itself carries
+/// both the project and whether a turn is still running.
+#[derive(Default)]
+struct CodexProbe {
+    /// How far into the log the task markers have been scanned.
+    read_to: u64,
+    cwd: String,
+    running: bool,
+}
+
+fn newest_dirs(dir: &Path, keep: usize) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .collect();
+    dirs.sort();
+    dirs.reverse();
+    dirs.truncate(keep);
+    dirs
+}
+
+/// `~/.codex/sessions/<year>/<month>/<day>`, newest days only.
+fn codex_day_dirs() -> Vec<PathBuf> {
+    let Some(root) = home().map(|home| home.join(".codex/sessions")) else {
+        return Vec::new();
+    };
+    let mut dirs = vec![root];
+    for keep in [1, 1, 2] {
+        dirs = dirs.iter().flat_map(|dir| newest_dirs(dir, keep)).collect();
+    }
+    dirs
+}
+
+/// The first line of a rollout is its `session_meta`.
+fn codex_cwd(path: &Path) -> Option<String> {
+    let mut line = String::new();
+    BufReader::new(File::open(path).ok()?).read_line(&mut line).ok()?;
+    let meta: serde_json::Value = serde_json::from_str(&line).ok()?;
+    meta["payload"]["cwd"].as_str().map(|cwd| cwd.to_string())
+}
+
+/// Reads the part of the log added since last time and reports whether the
+/// last task marker in it was a start (`None` when the slice had neither).
+fn codex_running(path: &Path, from: u64) -> Option<bool> {
+    let mut file = File::open(path).ok()?;
+    file.seek(SeekFrom::Start(from)).ok()?;
+    let mut appended = String::new();
+    file.take(8 * 1024 * 1024).read_to_string(&mut appended).ok()?;
+    let started = appended.rfind(r#""type":"task_started""#);
+    let completed = appended.rfind(r#""type":"task_complete""#);
+    match (started, completed) {
+        (Some(started), Some(completed)) => Some(started > completed),
+        (Some(_), None) => Some(true),
+        (None, Some(_)) => Some(false),
+        (None, None) => None,
+    }
+}
+
+fn unix_ms(time: SystemTime) -> f64 {
+    time.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs_f64() * 1000.0
+}
+
+fn read_codex_sessions(probes: &mut HashMap<PathBuf, CodexProbe>) -> Vec<AgentSession> {
+    let now = SystemTime::now();
+    let mut newest: BTreeMap<String, AgentSession> = BTreeMap::new();
+    let mut seen = HashSet::new();
+
+    for dir in codex_day_dirs() {
+        for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.extension().is_none_or(|extension| extension != "jsonl") {
+                continue;
+            }
+            let Ok(metadata) = entry.metadata() else { continue };
+            let Ok(modified) = metadata.modified() else { continue };
+            let idle_for = now.duration_since(modified).unwrap_or_default();
+            if idle_for > CODEX_RECENT {
+                continue;
+            }
+
+            let probe = probes.entry(path.clone()).or_default();
+            if probe.cwd.is_empty() {
+                let Some(cwd) = codex_cwd(&path) else { continue };
+                probe.cwd = cwd;
+            }
+            if metadata.len() > probe.read_to {
+                if let Some(running) = codex_running(&path, probe.read_to) {
+                    probe.running = running;
+                }
+                probe.read_to = metadata.len();
+            }
+            seen.insert(path.clone());
+
+            let session = AgentSession {
+                id: path.to_string_lossy().into_owned(),
+                agent: Agent::Codex,
+                name: path.file_stem().map(|stem| stem.to_string_lossy().into_owned()).unwrap_or_default(),
+                project: project_name(&probe.cwd),
+                path: probe.cwd.clone(),
+                // A run that stopped writing minutes ago is over, even if the
+                // log never got its task_complete.
+                status: if probe.running && idle_for < CODEX_STALE {
+                    SessionStatus::Busy
+                } else {
+                    SessionStatus::Idle
+                },
+                detail: None,
+                updated_at: unix_ms(modified),
+            };
+            // One row per project: several rollouts pile up for the same one.
+            newest
+                .entry(session.path.clone())
+                .and_modify(|current| {
+                    if session.status == SessionStatus::Busy || session.updated_at > current.updated_at {
+                        *current = session.clone();
+                    }
+                })
+                .or_insert(session);
+        }
+    }
+
+    probes.retain(|path, _| seen.contains(path));
+    newest.into_values().collect()
 }
 
 /// `file:///Users/me/dev` -> `/Users/me/dev`; other schemes are skipped.
@@ -303,10 +462,16 @@ pub fn start(app: AppHandle) {
             RefreshKind::nothing()
                 .with_processes(ProcessRefreshKind::nothing().with_exe(UpdateKind::Always)),
         );
+        let mut codex_probes = HashMap::new();
         loop {
             system.refresh_processes(ProcessesToUpdate::All, true);
+            let mut claude = read_claude_sessions(&system);
+            prioritize(&mut claude);
+            let mut codex = read_codex_sessions(&mut codex_probes);
+            prioritize(&mut codex);
+
             let next = DevState {
-                sessions: read_sessions(&system),
+                sessions: interleave(claude, codex),
                 workspaces: read_workspaces(&system),
             };
 

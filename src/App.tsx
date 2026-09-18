@@ -3,7 +3,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useEffect } from "react";
 
 import { Notch } from "./components/Notch";
-import { notify, playChime, playPing } from "./lib/alerts";
+import { notify, playPing } from "./lib/alerts";
 import { hoverAt } from "./lib/hover";
 import { events, native, type DevState } from "./lib/native";
 import { useDev } from "./store/dev";
@@ -11,7 +11,6 @@ import { useMedia } from "./store/media";
 import { usePaste } from "./store/paste";
 import { useNotch, type Section } from "./store/notch";
 import { useShelf, type AddResult } from "./store/shelf";
-import { useTimer } from "./store/timer";
 
 export default function App() {
   const ready = useNotch((s) => s.ready);
@@ -53,8 +52,6 @@ export default function App() {
       subscriptions.forEach((subscription) => subscription.then((unlisten) => unlisten()));
     };
   }, []);
-
-  useTimerCompletion();
 
   return ready ? <Notch /> : null;
 }
@@ -109,25 +106,4 @@ function dropMessage({ added, duplicates, rejectedForSpace }: AddResult) {
   if (added > 0) return rejectedForSpace > 0 ? `已暂存 ${added} 个，暂存架满了` : `已暂存 ${added} 个文件`;
   if (rejectedForSpace > 0) return "暂存架满了";
   return duplicates > 0 ? "已经在暂存架里" : "无法暂存这个项目";
-}
-
-/** Timers keep running while the notch is collapsed, so completion lives at the root. */
-function useTimerCompletion() {
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      const timer = useTimer.getState();
-      if (timer.endsAt === null || Date.now() < timer.endsAt) return;
-
-      const finished = timer.complete();
-      const breakStarted = useTimer.getState().endsAt !== null;
-      playChime();
-      if (finished === "focus") {
-        void notify("专注完成", breakStarted ? `休息 ${timer.minutes.break} 分钟吧` : "休息一下吧");
-      } else {
-        void notify("休息结束", "准备开始下一轮专注");
-      }
-      alertWith("timer");
-    }, 500);
-    return () => window.clearInterval(id);
-  }, []);
 }

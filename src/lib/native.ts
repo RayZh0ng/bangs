@@ -46,8 +46,11 @@ export interface FileMeta {
 
 export type SessionStatus = "busy" | "waiting" | "idle";
 
-export interface ClaudeSession {
+export type Agent = "claude" | "codex";
+
+export interface AgentSession {
   id: string;
+  agent: Agent;
   name: string;
   path: string;
   project: string;
@@ -67,7 +70,7 @@ export interface EditorWorkspace {
 }
 
 export interface DevState {
-  sessions: ClaudeSession[];
+  sessions: AgentSession[];
   workspaces: EditorWorkspace[];
 }
 
@@ -112,7 +115,7 @@ export const native = {
   media: (command: MediaCommand) => invoke<void>("media_command", { command }),
   openProject: (path: string, editor?: string) => invoke<void>("open_project", { path, editor }),
   pasteCopy: (id: number) => invoke<void>("paste_copy", { id }),
-  pasteOpen: () => invoke<void>("paste_open"),
+  pasteShow: () => invoke<void>("paste_show"),
   inspectFiles: (paths: string[]) => invoke<FileMeta[]>("shelf_inspect", { paths }),
   openFile: (path: string) => invoke<void>("open_file", { path }),
   revealFile: (path: string) => invoke<void>("reveal_file", { path }),

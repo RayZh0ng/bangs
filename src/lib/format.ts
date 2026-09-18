@@ -9,15 +9,6 @@ export function clock(seconds: number): string {
   return hours > 0 ? `${hours}:${pad(minutes)}:${pad(rest)}` : `${minutes}:${pad(rest)}`;
 }
 
-/** Countdown that never shows 00:00 while time remains, e.g. `24:59`. */
-export function countdown(milliseconds: number): string {
-  const total = Math.max(0, Math.ceil(milliseconds / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const rest = total % 60;
-  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(rest)}` : `${pad(minutes)}:${pad(rest)}`;
-}
-
 /** Coarse "x minutes ago" used in the dev and clipboard lists. */
 export function relativeTime(timestamp: number, now: number): string {
   const seconds = Math.max(0, (now - timestamp) / 1000);

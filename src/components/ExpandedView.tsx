@@ -3,16 +3,14 @@ import type { ComponentType, SVGProps } from "react";
 import type { Size } from "../lib/layout";
 import { useNotch, type Section } from "../store/notch";
 import { DevPanel } from "./DevPanel";
-import { ClipboardIcon, CodeIcon, MusicIcon, PinIcon, ShelfIcon, TimerIcon } from "./Icons";
+import { ClipboardIcon, CodeIcon, MusicIcon, PinIcon, ShelfIcon } from "./Icons";
 import { MusicPanel } from "./MusicPanel";
 import { PastePanel } from "./PastePanel";
 import { ShelfPanel } from "./ShelfPanel";
-import { TimerPanel } from "./TimerPanel";
 import { usePaste } from "../store/paste";
 
 const SECTIONS: { id: Section; label: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
   { id: "music", label: "音乐", Icon: MusicIcon },
-  { id: "timer", label: "专注", Icon: TimerIcon },
   { id: "shelf", label: "暂存", Icon: ShelfIcon },
   { id: "dev", label: "代码", Icon: CodeIcon },
   { id: "paste", label: "剪贴板", Icon: ClipboardIcon },
@@ -61,7 +59,6 @@ export function ExpandedView({ base, notchGap }: Props) {
 
       <main className="panel">
         {section === "music" && <MusicPanel />}
-        {section === "timer" && <TimerPanel />}
         {section === "shelf" && <ShelfPanel />}
         {section === "dev" && <DevPanel />}
         {section === "paste" && <PastePanel />}

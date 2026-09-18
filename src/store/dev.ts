@@ -1,10 +1,10 @@
 import { create } from "zustand";
 
-import type { ClaudeSession, DevState } from "../lib/native";
+import type { AgentSession, DevState } from "../lib/native";
 
 interface DevStore extends DevState {
   /** Applies an update and reports the sessions that just stopped working. */
-  update(next: DevState): ClaudeSession[];
+  update(next: DevState): AgentSession[];
 }
 
 export const useDev = create<DevStore>((set, get) => ({
@@ -21,8 +21,5 @@ export const useDev = create<DevStore>((set, get) => ({
   },
 }));
 
-export const waitingSessions = (sessions: ClaudeSession[]) =>
+export const waitingSessions = (sessions: AgentSession[]) =>
   sessions.filter((session) => session.status === "waiting");
-
-export const busySessions = (sessions: ClaudeSession[]) =>
-  sessions.filter((session) => session.status === "busy");

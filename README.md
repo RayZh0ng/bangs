@@ -5,14 +5,13 @@ A dynamic notch for macOS and Windows, built with Tauri 2 + React by gxlself
 the notch, and expands on hover.
 
 - **Now playing**: artwork, progress and play/pause/skip/seek for the current system media session
-- **Focus timer**: pomodoro with focus/break presets, auto break, countdown in the collapsed notch
 - **File shelf**: drop files on the notch to park them, drag them back out to other apps
-- **Dev panel**: Claude Code sessions with busy/waiting/idle status, plus VS Code / Cursor open
-  projects with git branch when available. Click a row to open the project in the editor.
-  Optional alerts open the panel when a session changes from busy to waiting or idle, and close it
-  again after a few seconds if nobody looks.
+- **Dev panel**: Claude Code and Codex CLI sessions with busy/waiting/idle status in one list, and
+  the projects VS Code and Cursor have open, grouped per editor with their git branch. Click a row
+  to open that project in the editor. Optional alerts open the panel when a session changes from
+  busy to waiting or idle, and close it again after a few seconds if nobody looks.
 - **Clipboard (macOS)**: history from gxlself's own Paste app (`gxlself.paste-tool`).
-  Click text to copy it back to the clipboard; image and file entries open Paste.
+  Click text to put it back on the clipboard; image and file entries hand over to Paste's own panel.
 
 Screens with a hardware notch get wings around it; other screens get a virtual notch (or a thin bar,
 see the tray menu).
@@ -31,6 +30,9 @@ Build each platform on that platform (Windows installers cannot be produced on m
 
 The tray menu controls show/hide, expand on hover, idle bar, Claude alerts, display and launch at login.
 
+The clipboard panel asks Paste for its panel with `open pasteg://panel`, which Paste answers in
+`AppDelegate.application(_:open:)`; older Paste builds only get activated instead.
+
 ## How it works
 
 | | macOS | Windows |
@@ -38,7 +40,7 @@ The tray menu controls show/hide, expand on hover, idle bar, Claude alerts, disp
 | Window | NSPanel (`tauri-nspanel`), non-activating, status level above the menu bar | Topmost, `focusable: false` (`WS_EX_NOACTIVATE`), no taskbar entry; hides during full-screen apps |
 | Now playing | MediaRemote, loaded into `/usr/bin/perl` (see below) | `GlobalSystemMediaTransportControlsSessionManager` |
 | Notch size | `NSScreen.safeAreaInsets` / `auxiliaryTop*Area` | Virtual only |
-| Dev panel | Local Claude Code sessions and VS Code / Cursor state | Same, using Windows application-data paths |
+| Dev panel | Claude Code / Codex session state and VS Code / Cursor state | Same, using Windows application-data paths |
 | Clipboard | Paste Core Data SQLite store, read-only | No Paste integration |
 
 The host window is a fixed 640 x 280 transparent window in logical pixels. The visible notch animates
@@ -54,8 +56,9 @@ is built by `src-tauri/build.rs` into `src-tauri/resources/libbangs_media.dylib`
 `/usr/bin/perl`, and talks to the app over stdio (JSON lines out, commands in). This relies on system
 behavior Apple could change in a future release.
 
-The dev integration polls every two seconds, reading `~/.claude/sessions/*.json`, the editors'
-`User/globalStorage/storage.json`, and project `.git/HEAD` files read-only. It checks running
+The dev integration polls every two seconds, reading `~/.claude/sessions/*.json`, the newest
+`~/.codex/sessions` rollout logs (a session counts as running while its log has an unfinished
+`task_started`), the editors' `User/globalStorage/storage.json`, and project `.git/HEAD` read-only. It checks running
 processes to ignore stale sessions and closed editors. Opening a project uses the editor on macOS
 or its `code` / `cursor` CLI on Windows, with a folder-reveal fallback.
 
@@ -66,12 +69,12 @@ Bangs never writes to the Paste database; copying text writes to the system clip
 
 ```text
 src/                       React UI
-  App.tsx                  native events, drag/drop, timer and Claude alerts
-  components/              Notch shell, compact/expanded views, music/timer/shelf panels
-    DevPanel.tsx           Claude sessions and editor project rows
+  App.tsx                  native events, drag/drop and agent alerts
+  components/              Notch shell, compact/expanded views, music and shelf panels
+    DevPanel.tsx           agent sessions and per-editor project rows
     PastePanel.tsx         clipboard history and copy/open actions
-  store/                   zustand stores: notch state machine, media, timer, shelf
-    dev.ts                 sessions, workspaces and busy-to-idle/waiting detection
+  store/                   zustand stores: notch state machine, media, shelf
+    dev.ts                 agent sessions, workspaces and busy-to-idle/waiting detection
     paste.ts               clipboard history and copy feedback
   lib/layout.ts            notch sizes per mode (keep WINDOW in sync with geometry.rs)
   lib/hover.ts             pointer-driven [data-hover] workaround
@@ -80,8 +83,8 @@ src-tauri/src/
   geometry.rs              window placement, hit rect, cursor tracker, display watcher
   platform/{mac,win}.rs     window setup, cursor, notch metrics, editor launch, full-screen handling
   media/{mod,mac,win}.rs    shared media state and platform now-playing providers
-  dev.rs                   read-only session/editor polling and project opening
-  paste.rs                 macOS read-only Paste store, text copy and Paste launch
+  dev.rs                   read-only Claude/Codex/editor polling and project opening
+  paste.rs                 macOS read-only Paste store, text copy and panel hand-off
   paste_other.rs           unavailable Paste stub on other platforms
   shelf.rs                 file metadata, open/reveal, drag preview
   tray.rs, settings.rs      tray menu and persisted settings

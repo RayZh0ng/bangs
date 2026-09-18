@@ -15,7 +15,7 @@ const FALLBACK_HEIGHT = 32;
 /** Extra width on each side of the notch for live activity in compact mode. */
 export const WING = 76;
 const HANDLE: Size = { width: 130, height: 7 };
-const EXPANDED = { width: 520, body: 164 };
+const EXPANDED = { width: 600, body: 168 };
 const DROP = { width: 420, body: 92 };
 
 /** The resting notch: the hardware cutout, or a virtual one sized like it. */
@@ -36,7 +36,7 @@ export function notchSize(
   const base = baseNotch(screen);
   switch (mode) {
     case "expanded":
-      return { width: Math.max(EXPANDED.width, base.width + 260), height: base.height + EXPANDED.body };
+      return { width: Math.max(EXPANDED.width, base.width + 280), height: base.height + EXPANDED.body };
     case "drop":
     case "success":
       return { width: Math.max(DROP.width, base.width + 160), height: base.height + DROP.body };

@@ -37,13 +37,6 @@ export const MusicIcon = (props: IconProps) => (
   </Stroke>
 );
 
-export const TimerIcon = (props: IconProps) => (
-  <Stroke {...props}>
-    <circle cx="12" cy="13" r="8" />
-    <path d="M12 9v4l2.5 2.5M9 2h6" />
-  </Stroke>
-);
-
 export const ShelfIcon = (props: IconProps) => (
   <Stroke {...props}>
     <path d="M22 12h-6l-2 3h-4l-2-3H2" />
