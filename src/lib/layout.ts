@@ -11,15 +11,16 @@ export interface Size {
 export const WINDOW: Size = { width: 640, height: 280 };
 
 const VIRTUAL_NOTCH_WIDTH = 190;
-const FALLBACK_HEIGHT = 32;
+/** Height of a drawn strip where there is no menu bar to match (Windows). */
+const FALLBACK_HEIGHT = 26;
 /** Extra width on each side of the notch for live activity in compact mode. */
 export const WING = 76;
 /** The right wing grows when it carries a lyric line instead of a glyph. */
 export const LYRIC_WING = 190;
 /** Without a cutout in the way, the lyric gets the whole strip. */
 const LYRIC_STRIP = 300;
-/** A strip on a plain screen may be a little taller than the menu bar. */
-const STRIP_HEIGHT = 28;
+/** A lyric needs a little more room than a bare strip gives it. */
+const LYRIC_HEIGHT = 28;
 const HANDLE: Size = { width: 130, height: 7 };
 const EXPANDED = { width: 600, body: 184 };
 const DROP = { width: 420, body: 92 };
@@ -63,11 +64,13 @@ export function notchSize(
       return { width: Math.max(DROP.width, base.width + 160), height: base.height + DROP.body };
     case "compact": {
       const gap = centerGap(screen);
-      // A hardware notch fixes the height; a drawn strip can afford a couple of
-      // points more, which is what makes a lyric readable on a 24pt menu bar.
-      const height = hasActivity && !screen.hasNotch ? Math.max(base.height, STRIP_HEIGHT) : base.height;
-      if (lyric) return { width: gap + WING + lyricWidth(screen), height };
-      if (hasActivity) return { width: Math.max(base.width, gap + WING * 2), height };
+      // A hardware notch fixes the height. A drawn strip stays as slim as it
+      // can, and only grows for a lyric, which is unreadable at strip height.
+      if (lyric) {
+        const height = screen.hasNotch ? base.height : Math.max(base.height, LYRIC_HEIGHT);
+        return { width: gap + WING + lyricWidth(screen), height };
+      }
+      if (hasActivity) return { width: Math.max(base.width, gap + WING * 2), height: base.height };
       if (settings.idleHandle && !screen.hasNotch) return HANDLE;
       return base;
     }
