@@ -1,17 +1,16 @@
 import type { UIEvent } from "react";
 
 import { relativeTime } from "../lib/format";
+import { t } from "../lib/i18n";
 import type { ClipItem } from "../lib/native";
 import { useNow } from "../lib/useNow";
 import { useClipboard } from "../store/clipboard";
 import { Empty } from "./Empty";
 import { ClipboardIcon } from "./Icons";
 
-const KIND_LABEL: Record<ClipItem["kind"], string | null> = {
-  text: null,
-  image: "图片",
-  files: "文件",
-};
+/** Only non-text kinds are worth labelling. */
+const kindLabel = (kind: ClipItem["kind"]) =>
+  kind === "image" ? t("图片", "Image") : kind === "files" ? t("文件", "Files") : null;
 
 export function ClipboardPanel() {
   const items = useClipboard((state) => state.items);
@@ -28,16 +27,19 @@ export function ClipboardPanel() {
     return (
       <div className="empty">
         <ClipboardIcon />
-        <div className="empty__title">还没有剪贴板历史</div>
-        <div className="empty__hint">装上 Paste，复制过的内容就会出现在这里</div>
+        <div className="empty__title">{t("还没有剪贴板历史", "No clipboard history yet")}</div>
+        <div className="empty__hint">
+          {t("装上 Paste，复制过的内容就会出现在这里", "Install Paste and everything you copy shows up here")}
+        </div>
         <button className="button" onClick={() => void install()}>
-          去安装 Paste
+          {t("去安装 Paste", "Get Paste")}
         </button>
       </div>
     );
   }
   if (!items.length) {
-    return <Empty icon={<ClipboardIcon />} title="剪贴板历史是空的" hint="复制点什么，就会出现在这里" />;
+    return <Empty icon={<ClipboardIcon />} title={t("剪贴板历史是空的", "The clipboard history is empty")}
+        hint={t("复制点什么，就会出现在这里", "Copy something and it shows up here")} />;
   }
 
   // Older entries load as the list reaches its end.
@@ -58,25 +60,29 @@ export function ClipboardPanel() {
             )}
             <span className="row__main">
               <span className="row__title row__title--plain">
-                {KIND_LABEL[item.kind] && <span className="tag tag--soft">{KIND_LABEL[item.kind]}</span>}
-                {item.preview === KIND_LABEL[item.kind] ? "" : item.preview}
+                {kindLabel(item.kind) && <span className="tag tag--soft">{kindLabel(item.kind)}</span>}
+                {item.preview === kindLabel(item.kind) ? "" : item.preview}
               </span>
             </span>
             <span className={`row__meta${copiedId === item.id ? " row__meta--ok" : ""}`}>
-              {copiedId === item.id ? "已复制" : relativeTime(item.createdAt, now)}
+              {copiedId === item.id ? t("已复制", "Copied") : relativeTime(item.createdAt, now)}
             </span>
           </button>
         ))}
       </div>
       <div className="shelf__footer">
-        <span>{notice ?? `${items.length} 条${hasMore ? "+" : ""} · 点一下放回剪贴板`}</span>
+        <span>{notice ??
+            t(
+              `${items.length} 条${hasMore ? "+" : ""} · 点一下放回剪贴板`,
+              `${items.length}${hasMore ? "+" : ""} · click one to put it back`,
+            )}</span>
         {source === "paste" ? (
           <button className="link-button" onClick={() => void showPanel()}>
-            唤出 Paste
+            {t("唤出 Paste", "Open Paste")}
           </button>
         ) : (
           <button className="link-button" onClick={() => void clear()}>
-            清空
+            {t("清空", "Clear")}
           </button>
         )}
       </div>

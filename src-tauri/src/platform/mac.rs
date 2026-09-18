@@ -4,7 +4,7 @@ use std::ptr;
 use objc2::rc::Retained;
 use objc2::MainThreadMarker;
 use objc2_app_kit::{NSCursor, NSRunningApplication, NSScreen};
-use objc2_foundation::NSString;
+use objc2_foundation::{NSLocale, NSString};
 use tauri::{AppHandle, Manager, Monitor};
 use tauri_nspanel::{CollectionBehavior, ManagerExt, PanelLevel, StyleMask, WebviewWindowExt};
 
@@ -105,6 +105,15 @@ pub fn set_cursor(app: &AppHandle, shape: &str) {
         };
         cursor.set();
     });
+}
+
+/// The language the system prefers, as a tag like "zh-Hans-CN" or "en-GB".
+pub fn system_language() -> String {
+    NSLocale::preferredLanguages()
+        .iter()
+        .next()
+        .map(|language| language.to_string())
+        .unwrap_or_default()
 }
 
 /// Whether an app with this bundle identifier is running right now. Asking

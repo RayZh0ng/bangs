@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, Manager, Monitor};
 use windows::Win32::Foundation::POINT;
+use windows::Win32::Globalization::GetUserDefaultLocaleName;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, VIRTUAL_KEY, VK_LBUTTON, VK_RBUTTON,
 };
@@ -46,6 +47,17 @@ pub fn set_hit_region(app: &AppHandle, width: f64, height: f64, scale: f64) {
             let _ = DeleteObject(region.into());
         }
     }
+}
+
+/// The language the system prefers, as a tag like "zh-CN" or "en-US".
+pub fn system_language() -> String {
+    let mut buffer = [0u16; 85];
+    let length = unsafe { GetUserDefaultLocaleName(&mut buffer) };
+    if length <= 1 {
+        return String::new();
+    }
+    // The count includes the terminating null.
+    String::from_utf16_lossy(&buffer[..(length as usize - 1)])
 }
 
 /// WebView2 gets the mouse moves, so the stylesheet's own cursor applies.

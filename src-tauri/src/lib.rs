@@ -1,6 +1,7 @@
 mod clipboard;
 mod dev;
 mod geometry;
+mod i18n;
 mod lyrics;
 mod media;
 mod platform;
@@ -32,6 +33,8 @@ struct Bootstrap {
     dev: DevState,
     clipboard: ClipboardState,
     drag_icon: Option<String>,
+    /// "zh" or "en", resolved from the setting or the system.
+    language: &'static str,
 }
 
 /// Everything the webview needs for its first render. Events that fire
@@ -46,6 +49,7 @@ fn bootstrap(app: AppHandle) -> Bootstrap {
         dev: app.state::<DevHub>().current(),
         clipboard: app.state::<ClipboardHub>().current(),
         drag_icon: shelf::drag_icon_path(&app),
+        language: i18n::code(),
     }
 }
 
@@ -98,7 +102,9 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             let handle = app.handle().clone();
-            app.manage(settings::init(&handle));
+            let settings = settings::init(&handle);
+            i18n::apply(settings.get().language.as_deref());
+            app.manage(settings);
             app.manage(Geometry::default());
             app.manage(MediaHub::default());
             app.manage(LyricsHub::default());

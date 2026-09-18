@@ -2,6 +2,7 @@ import type { ComponentType, SVGProps } from "react";
 
 
 
+import { t } from "../lib/i18n";
 import type { Size } from "../lib/layout";
 import { useNotch, type Section } from "../store/notch";
 import { DevPanel } from "./DevPanel";
@@ -11,11 +12,11 @@ import { ClipboardPanel } from "./ClipboardPanel";
 import { ShelfPanel } from "./ShelfPanel";
 import { useClipboard } from "../store/clipboard";
 
-const SECTIONS: { id: Section; label: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
-  { id: "music", label: "音乐", Icon: MusicIcon },
-  { id: "shelf", label: "暂存", Icon: ShelfIcon },
-  { id: "dev", label: "代码", Icon: CodeIcon },
-  { id: "paste", label: "剪贴板", Icon: ClipboardIcon },
+const SECTIONS: { id: Section; label: () => string; Icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
+  { id: "music", label: () => t("音乐", "Music"), Icon: MusicIcon },
+  { id: "shelf", label: () => t("暂存", "Shelf"), Icon: ShelfIcon },
+  { id: "dev", label: () => t("代码", "Code"), Icon: CodeIcon },
+  { id: "paste", label: () => t("剪贴板", "Clipboard"), Icon: ClipboardIcon },
 ];
 
 interface Props {
@@ -42,10 +43,10 @@ export function ExpandedView({ base, notchGap }: Props) {
               key={id}
               className={`tab${section === id ? " is-active" : ""}`}
               onClick={() => selectSection(id)}
-              title={label}
+              title={label()}
             >
               <Icon width={13} height={13} />
-              {section === id && <span>{label}</span>}
+              {section === id && <span>{label()}</span>}
             </button>
           ))}
         </nav>
@@ -54,14 +55,15 @@ export function ExpandedView({ base, notchGap }: Props) {
           <button
             className={`icon-button${pinned ? " is-active" : ""}`}
             onClick={togglePin}
-            title={pinned ? "取消固定" : "固定展开"}
+            title={pinned ? t("取消固定", "Unpin") : t("固定展开", "Keep open")}
           >
             <PinIcon width={13} height={13} filled={pinned} />
           </button>
         </div>
       </header>
 
-      <main className="panel">
+      {/* Keyed so switching tabs fades the new panel in. */}
+      <main className="panel" key={section}>
         {section === "music" && <MusicPanel />}
         {section === "shelf" && <ShelfPanel />}
         {section === "dev" && <DevPanel />}

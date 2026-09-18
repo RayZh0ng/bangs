@@ -3,12 +3,14 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_autostart::ManagerExt as _;
 
+use crate::i18n::t;
 use crate::settings::{self, SettingsState};
 use crate::update;
 use crate::{geometry, platform, MAIN_WINDOW};
 
 const TRAY_ID: &str = "bangs-tray";
 const DISPLAY_PREFIX: &str = "display:";
+const LANGUAGE_PREFIX: &str = "language:";
 
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let settings = app.state::<SettingsState>().get();
@@ -18,11 +20,11 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .and_then(|window| window.available_monitors().ok())
         .unwrap_or_default();
 
-    let display = Submenu::with_id(app, "display", "显示器", true)?;
+    let display = Submenu::with_id(app, "display", t("显示器", "Display"), true)?;
     display.append(&CheckMenuItem::with_id(
         app,
         DISPLAY_PREFIX,
-        "跟随主显示器",
+        t("跟随主显示器", "Follow the main display"),
         true,
         settings.display.is_none(),
         None::<&str>,
@@ -39,22 +41,39 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         )?)?;
     }
 
+    let language = Submenu::with_id(app, "language", t("语言", "Language"), true)?;
+    for (value, label) in [
+        ("", t("跟随系统", "Follow the system")),
+        ("zh", "中文"),
+        ("en", "English"),
+    ] {
+        language.append(&CheckMenuItem::with_id(
+            app,
+            format!("{LANGUAGE_PREFIX}{value}"),
+            label,
+            true,
+            settings.language.as_deref().unwrap_or("") == value,
+            None::<&str>,
+        )?)?;
+    }
+
     Menu::with_items(
         app,
         &[
-            &CheckMenuItem::with_id(app, "visible", "显示刘海", true, settings.visible, None::<&str>)?,
-            &CheckMenuItem::with_id(app, "hover", "悬停时展开", true, settings.expand_on_hover, None::<&str>)?,
-            &CheckMenuItem::with_id(app, "idle-handle", "空闲时收成细条", true, settings.idle_handle, None::<&str>)?,
+            &CheckMenuItem::with_id(app, "visible", t("显示刘海", "Show the notch"), true, settings.visible, None::<&str>)?,
+            &CheckMenuItem::with_id(app, "hover", t("悬停时展开", "Expand on hover"), true, settings.expand_on_hover, None::<&str>)?,
+            &CheckMenuItem::with_id(app, "idle-handle", t("空闲时收成细条", "Shrink to a bar when idle"), true, settings.idle_handle, None::<&str>)?,
             #[cfg(windows)]
-            &CheckMenuItem::with_id(app, "clipboard-history", "记录剪贴板", true, settings.clipboard_history, None::<&str>)?,
-            &CheckMenuItem::with_id(app, "lyrics", "显示歌词", true, settings.lyrics_enabled, None::<&str>)?,
-            &CheckMenuItem::with_id(app, "notify-claude", "Claude 忙完时提醒", true, settings.notify_claude_idle, None::<&str>)?,
+            &CheckMenuItem::with_id(app, "clipboard-history", t("记录剪贴板", "Record the clipboard"), true, settings.clipboard_history, None::<&str>)?,
+            &CheckMenuItem::with_id(app, "lyrics", t("显示歌词", "Show lyrics"), true, settings.lyrics_enabled, None::<&str>)?,
+            &CheckMenuItem::with_id(app, "notify-claude", t("Claude 忙完时提醒", "Alert when Claude finishes"), true, settings.notify_claude_idle, None::<&str>)?,
             &display,
+            &language,
             &PredefinedMenuItem::separator(app)?,
-            &CheckMenuItem::with_id(app, "autostart", "开机启动", true, autostart, None::<&str>)?,
+            &CheckMenuItem::with_id(app, "autostart", t("开机启动", "Launch at login"), true, autostart, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "version", update::menu_label(app), true, None::<&str>)?,
-            &MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?,
+            &MenuItem::with_id(app, "quit", t("退出", "Quit"), true, None::<&str>)?,
         ],
     )
 }
@@ -132,6 +151,14 @@ fn handle_menu(app: &AppHandle, id: &str) {
             if let Err(error) = result {
                 eprintln!("[tray] failed to toggle autostart: {error}");
             }
+        }
+        other if other.starts_with(LANGUAGE_PREFIX) => {
+            let choice = other.trim_start_matches(LANGUAGE_PREFIX).to_string();
+            let (_, next) = settings::update(app, |settings| {
+                settings.language = (!choice.is_empty()).then(|| choice.clone());
+            });
+            crate::i18n::apply(next.language.as_deref());
+            let _ = tauri::Emitter::emit(app, "bangs://language", crate::i18n::code());
         }
         other => {
             let Some(name) = other.strip_prefix(DISPLAY_PREFIX) else { return };

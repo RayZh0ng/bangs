@@ -16,7 +16,10 @@ export interface Settings {
   idleHandle: boolean;
   notifyClaudeIdle: boolean;
   lyricsEnabled: boolean;
+  clipboardHistory: boolean;
   display: string | null;
+  /** "zh" or "en"; null follows the system language. */
+  language: string | null;
 }
 
 export interface MediaState {
@@ -128,6 +131,8 @@ export interface Bootstrap {
   dev: DevState;
   clipboard: ClipboardState;
   dragIcon: string | null;
+  /** "zh" or "en", resolved natively. */
+  language: string;
 }
 
 export type MediaCommand =
@@ -162,6 +167,8 @@ export const events = {
   pointer: (handler: (point: [number, number]) => void) =>
     listen<[number, number]>("bangs://pointer", (event) => handler(event.payload)),
   outsideClick: (handler: () => void) => listen("bangs://outside-click", () => handler()),
+  language: (handler: (language: string) => void) =>
+    listen<string>("bangs://language", (event) => handler(event.payload)),
   screen: (handler: (screen: ScreenInfo) => void) =>
     listen<ScreenInfo>("bangs://screen", (event) => handler(event.payload)),
   settings: (handler: (settings: Settings) => void) =>

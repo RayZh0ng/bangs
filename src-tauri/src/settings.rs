@@ -22,6 +22,8 @@ pub struct Settings {
     /// `platform::display_label` of the monitor to attach to; `None` follows
     /// the primary monitor.
     pub display: Option<String>,
+    /// "zh" or "en"; `None` follows the system language.
+    pub language: Option<String>,
 }
 
 impl Default for Settings {
@@ -35,6 +37,7 @@ impl Default for Settings {
             lyrics_enabled: true,
             clipboard_history: true,
             display: None,
+            language: None,
         }
     }
 }

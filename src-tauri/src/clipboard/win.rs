@@ -23,6 +23,7 @@ use windows::Win32::UI::Shell::{DragQueryFileW, HDROP};
 use windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
 
 use super::{publish, ClipItem, ClipKind, ClipSource, ClipboardState};
+use crate::i18n::t;
 use crate::settings::SettingsState;
 
 const POLL: Duration = Duration::from_millis(600);
@@ -119,7 +120,7 @@ pub fn copy(app: AppHandle, id: i64) -> Result<(), String> {
     let clip = clips
         .iter()
         .find(|clip| clip.item.id == id)
-        .ok_or("这条记录已经不在了")?;
+        .ok_or_else(|| t("这条记录已经不在了", "That entry is gone"))?;
     app.clipboard()
         .write_text(clip.text.clone())
         .map_err(|error| error.to_string())

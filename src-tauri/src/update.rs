@@ -36,10 +36,19 @@ impl UpdateState {
 
 /// The tray entry: this build, and what is waiting on GitHub.
 pub fn menu_label(app: &AppHandle) -> String {
+    let chinese = crate::i18n::chinese();
     match app.state::<UpdateState>().latest() {
-        Some(latest) if is_newer(&latest, VERSION) => format!("有新版本 v{latest} — 去下载"),
-        Some(_) => format!("已是最新 v{VERSION}"),
-        None => format!("版本 v{VERSION}"),
+        Some(latest) if is_newer(&latest, VERSION) => {
+            if chinese {
+                format!("有新版本 v{latest} — 去下载")
+            } else {
+                format!("Version {latest} is out — download")
+            }
+        }
+        Some(_) if chinese => format!("已是最新 v{VERSION}"),
+        Some(_) => format!("v{VERSION} is the latest"),
+        None if chinese => format!("版本 v{VERSION}"),
+        None => format!("Version {VERSION}"),
     }
 }
 

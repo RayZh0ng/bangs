@@ -2,6 +2,7 @@ import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { PointerEvent } from "react";
 
+import { t } from "../lib/i18n";
 import { native } from "../lib/native";
 import { useNotch } from "../store/notch";
 import { SHELF_CAPACITY, useShelf, type ShelfItem } from "../store/shelf";
@@ -15,7 +16,8 @@ export function ShelfPanel() {
   const clear = useShelf((s) => s.clear);
 
   if (!items.length) {
-    return <Empty icon={<ShelfIcon />} title="暂存架是空的" hint="把文件拖到刘海上暂存，需要时再拖出来" />;
+    return <Empty icon={<ShelfIcon />} title={t("暂存架是空的", "The shelf is empty")}
+        hint={t("把文件拖到刘海上暂存，需要时再拖出来", "Drop files on the notch to park them, drag them back out later")} />;
   }
 
   return (
@@ -27,10 +29,10 @@ export function ShelfPanel() {
       </div>
       <div className="shelf__footer">
         <span>
-          {items.length}/{SHELF_CAPACITY} · 拖出使用，双击打开
+          {items.length}/{SHELF_CAPACITY} · {t("拖出使用，双击打开", "drag out to use, double-click to open")}
         </span>
         <button className="link-button" onClick={clear}>
-          清空
+          {t("清空", "Clear")}
         </button>
       </div>
     </div>
@@ -83,10 +85,10 @@ function ShelfTile({ item }: { item: ShelfItem }) {
       </div>
       <div className="tile__name">{item.name}</div>
       <div className="tile__actions">
-        <button className="tile__action" title="在文件夹中显示" onClick={() => native.revealFile(item.path).catch(() => {})}>
+        <button className="tile__action" title={t("在文件夹中显示", "Show in folder")} onClick={() => native.revealFile(item.path).catch(() => {})}>
           <FolderIcon width={10} height={10} />
         </button>
-        <button className="tile__action" title="移出暂存架" onClick={() => remove(item.path)}>
+        <button className="tile__action" title={t("移出暂存架", "Remove")} onClick={() => remove(item.path)}>
           <CloseIcon width={10} height={10} />
         </button>
       </div>

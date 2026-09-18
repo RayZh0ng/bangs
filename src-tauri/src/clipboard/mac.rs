@@ -14,6 +14,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use super::{publish, ClipItem, ClipKind, ClipSource, ClipboardState};
+use crate::i18n::t;
 
 const POLL: Duration = Duration::from_secs(3);
 const PREVIEW_CHARS: usize = 180;
@@ -76,9 +77,9 @@ fn preview_of(text: Option<String>, kind: ClipKind) -> String {
         return collapsed.chars().take(PREVIEW_CHARS).collect();
     }
     match kind {
-        ClipKind::Image => "图片".to_string(),
-        ClipKind::Files => "文件".to_string(),
-        ClipKind::Text => "空白内容".to_string(),
+        ClipKind::Image => t("图片", "Image").to_string(),
+        ClipKind::Files => t("文件", "Files").to_string(),
+        ClipKind::Text => t("空白内容", "Blank").to_string(),
     }
 }
 
@@ -156,7 +157,7 @@ pub fn refresh(app: &AppHandle) {
 /// Puts a history entry back on the clipboard. Images and files are left to
 /// Paste itself, which owns the richer pasteboard types.
 pub fn copy(app: AppHandle, id: i64) -> Result<(), String> {
-    let connection = connect().ok_or("Paste 数据库不可用")?;
+    let connection = connect().ok_or_else(|| t("Paste 数据库不可用", "Paste\u{2019}s database is unavailable"))?;
     let text: Option<String> = connection
         .query_row(
             "SELECT ZPLAINTEXT FROM ZCLIPBOARDITEMENTITY WHERE Z_PK = ?1",
@@ -164,7 +165,7 @@ pub fn copy(app: AppHandle, id: i64) -> Result<(), String> {
             |row| row.get(0),
         )
         .map_err(|error| error.to_string())?;
-    let text = text.filter(|text| !text.is_empty()).ok_or("这条没有文本内容")?;
+    let text = text.filter(|text| !text.is_empty()).ok_or_else(|| t("这条没有文本内容", "That entry has no text"))?;
     app.clipboard().write_text(text).map_err(|error| error.to_string())
 }
 
@@ -191,9 +192,9 @@ pub fn show_panel() -> Result<(), String> {
         .map(|status| status.success())
         .unwrap_or(false);
     Err(if launched {
-        "这个 Paste 版本还不支持直接弹面板，重新构建安装后即可".to_string()
+        t("这个 Paste 版本还不支持直接弹面板，重新构建安装后即可", "This build of Paste cannot open its panel on request yet").to_string()
     } else {
-        "没找到 Paste".to_string()
+        t("没找到 Paste", "Paste is not installed").to_string()
     })
 }
 
@@ -203,5 +204,5 @@ pub fn open_download_page() -> Result<(), String> {
         .arg(DOWNLOAD_PAGE)
         .status()
         .map_err(|error| error.to_string())
-        .and_then(|status| status.success().then_some(()).ok_or_else(|| "无法打开下载页".to_string()))
+        .and_then(|status| status.success().then_some(()).ok_or_else(|| t("无法打开下载页", "Could not open the download page").to_string()))
 }

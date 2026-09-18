@@ -4,6 +4,8 @@
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
+
+use crate::i18n::t;
 use tauri::{AppHandle, Emitter, Manager};
 
 #[cfg(target_os = "macos")]
@@ -121,7 +123,7 @@ pub fn clipboard_use(app: AppHandle, id: i64) -> Result<(), String> {
     #[cfg(not(any(target_os = "macos", windows)))]
     {
         let _ = (app, id);
-        Err("剪贴板在这个平台上不可用".into())
+        Err(t("剪贴板在这个平台上不可用", "No clipboard history on this platform").into())
     }
 }
 
@@ -157,7 +159,7 @@ pub fn clipboard_open() -> Result<(), String> {
     #[cfg(target_os = "macos")]
     return mac::show_panel();
     #[cfg(not(target_os = "macos"))]
-    Err("这个平台没有外部剪贴板面板".into())
+    Err(t("这个平台没有外部剪贴板面板", "No external clipboard panel on this platform").into())
 }
 
 /// Windows only: Bangs owns that history, so it can drop it.
@@ -168,7 +170,7 @@ pub fn clipboard_clear(app: AppHandle) -> Result<(), String> {
     #[cfg(not(windows))]
     {
         let _ = app;
-        Err("历史由 Paste 管理，请在 Paste 里清空".into())
+        Err(t("历史由 Paste 管理，请在 Paste 里清空", "Paste owns this history; clear it there").into())
     }
 }
 
@@ -178,5 +180,5 @@ pub fn clipboard_install() -> Result<(), String> {
     #[cfg(target_os = "macos")]
     return mac::open_download_page();
     #[cfg(not(target_os = "macos"))]
-    Err("不需要安装".into())
+    Err(t("不需要安装", "Nothing to install").into())
 }

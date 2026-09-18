@@ -1,15 +1,13 @@
 import type { ReactNode } from "react";
 
-import { relativeTime } from "../lib/format";
+import { duration, relativeTime } from "../lib/format";
+import { t } from "../lib/i18n";
 import { native, type AgentSession, type EditorWorkspace } from "../lib/native";
 import { useNow } from "../lib/useNow";
 import { useDev } from "../store/dev";
 
-const STATUS_LABEL: Record<AgentSession["status"], string> = {
-  busy: "运行中",
-  waiting: "等你回复",
-  idle: "空闲",
-};
+const statusLabel = (status: AgentSession["status"]) =>
+  status === "busy" ? t("运行中", "Running") : status === "waiting" ? t("等你回复", "Waiting for you") : t("空闲", "Idle");
 
 const AGENT_LABEL: Record<AgentSession["agent"], string> = {
   claude: "Claude",
@@ -29,7 +27,7 @@ export function DevPanel() {
       <section className="dev__column">
         {sessions.length ? (
           <>
-            <h4 className="dev__heading">会话</h4>
+            <h4 className="dev__heading">{t("会话", "Sessions")}</h4>
             {sessions.map((session) => (
               <button
                 key={session.id}
@@ -45,7 +43,7 @@ export function DevPanel() {
             ))}
           </>
         ) : (
-          <p className="dev__empty">没有在跑的会话</p>
+          <p className="dev__empty">{t("没有在跑的会话", "No sessions running")}</p>
         )}
       </section>
 
@@ -59,7 +57,7 @@ export function DevPanel() {
             />
           ))
         ) : (
-          <p className="dev__empty">没有打开的项目</p>
+          <p className="dev__empty">{t("没有打开的项目", "No projects open")}</p>
         )}
       </section>
     </div>
@@ -89,8 +87,10 @@ function Group({ rows }: { rows: EditorWorkspace[] }): ReactNode {
 
 /** Idle sessions show when they stopped; the others how long they have been there. */
 function sinceLabel(session: AgentSession, now: number) {
-  const elapsed = relativeTime(session.updatedAt, now);
-  if (session.status === "idle") return elapsed;
-  if (elapsed === "刚刚") return STATUS_LABEL[session.status];
-  return `已${session.status === "busy" ? "跑" : "等"} ${elapsed.replace("前", "")}`;
+  if (session.status === "idle") return relativeTime(session.updatedAt, now);
+  const length = duration(session.updatedAt, now);
+  if (!length) return statusLabel(session.status);
+  return session.status === "busy"
+    ? t(`已跑 ${length}`, `running ${length}`)
+    : t(`已等 ${length}`, `waiting ${length}`);
 }
