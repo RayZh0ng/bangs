@@ -28,7 +28,8 @@ scripts/publish-site.sh         # 站点推到 gh-pages
 
 `build-release.sh` 会自动拿钥匙串里属于本项目团队（`W8L8ZJ3N2P`，可用 `BANGS_TEAM_ID` 改）的
 **Developer ID Application** 证书签名 —— 不能随便拿第一张：钥匙串里还有公司的证书，
-用它签出来的包团队和公证凭据对不上，公证会直接被拒。它连带签 app 里那个 MediaRemote 桥接 dylib（公证不接受只有 ad-hoc 签名的二进制）。
+用它签出来的包团队和公证凭据对不上，公证会直接被拒。
+它连带签 app 里那个 MediaRemote 桥接 dylib（公证不接受只有 ad-hoc 签名的二进制）。
 硬化运行时（hardened runtime）是打开的，`src-tauri/entitlements.plist` 里那条
 `com.apple.security.automation.apple-events` 不能删 —— 少了它，公证后的版本
 控制 Spotify 会被系统直接拒掉。
