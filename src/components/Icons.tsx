@@ -29,24 +29,25 @@ function Solid({ children, ...props }: IconProps) {
   );
 }
 
+// The tab glyphs are drawn for 13px: few strokes, nothing smaller than three units.
 export const MusicIcon = (props: IconProps) => (
   <Stroke {...props}>
-    <path d="M9 18V5l12-2v13" />
-    <circle cx="6" cy="18" r="3" />
-    <circle cx="18" cy="16" r="3" />
+    <path d="M4.5 13.5v-3M9.5 17V7M14.5 19.5v-15M19.5 14.5v-5" />
   </Stroke>
 );
 
 export const ShelfIcon = (props: IconProps) => (
   <Stroke {...props}>
-    <path d="M22 12h-6l-2 3h-4l-2-3H2" />
-    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    <path d="M12 3.5v9m0 0 3.3-3.3M12 12.5 8.7 9.2" />
+    <path d="M4 15v3.2A1.8 1.8 0 0 0 5.8 20h12.4a1.8 1.8 0 0 0 1.8-1.8V15" />
   </Stroke>
 );
 
 export const PinIcon = ({ filled, ...props }: IconProps & { filled?: boolean }) => (
   <Stroke {...props} fill={filled ? "currentColor" : "none"}>
-    <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+    <path d="M12 16.4V21" />
+    <path d="M8.4 3.2h7.2" />
+    <path d="M9.9 3.2v6.4l-2.1 3.1a1 1 0 0 0 .83 1.56h6.74a1 1 0 0 0 .83-1.56L14.1 9.6V3.2" />
   </Stroke>
 );
 
@@ -85,16 +86,18 @@ export const FolderIcon = (props: IconProps) => (
   </Stroke>
 );
 
+// A shell prompt: the dev panel is a list of CLI sessions.
 export const CodeIcon = (props: IconProps) => (
   <Stroke {...props}>
-    <path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14" />
+    <path d="m5 8.5 4 3.5-4 3.5" />
+    <path d="M12.5 16H19" />
   </Stroke>
 );
 
 export const ClipboardIcon = (props: IconProps) => (
   <Stroke {...props}>
-    <rect x="8" y="3" width="8" height="4" rx="1.4" />
-    <path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" />
+    <rect x="4.7" y="5" width="14.6" height="15.4" rx="3.2" />
+    <rect x="9" y="2.6" width="6" height="4.2" rx="1.6" fill="currentColor" stroke="none" />
   </Stroke>
 );
 

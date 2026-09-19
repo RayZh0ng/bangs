@@ -33,41 +33,57 @@ func notchPath(x: CGFloat, width: CGFloat, height: CGFloat, ear: CGFloat, bottom
     return p
 }
 
-let accent = CGColor(red: 0.58, green: 0.98, blue: 0.67, alpha: 1)
+func rgb(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
+    CGColor(red: CGFloat((hex >> 16) & 0xff) / 255, green: CGFloat((hex >> 8) & 0xff) / 255,
+            blue: CGFloat(hex & 0xff) / 255, alpha: alpha)
+}
+
+let ink = rgb(0x0D0F12)
 let dir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "src-tauri/icons"
 
+/// A mint tile with the notch and its fringe in ink: the app's accent, inverted so the
+/// icon stays legible at 32px and against a dark Dock or Finder row.
 render(1024, to: "\(dir)/app-icon.png") { cg, s in
     let inset: CGFloat = 100
     let tile = CGRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
     cg.addPath(CGPath(roundedRect: tile, cornerWidth: 185, cornerHeight: 185, transform: nil))
     cg.clip()
     let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                              colors: [CGColor(red: 0.20, green: 0.21, blue: 0.24, alpha: 1),
-                                       CGColor(red: 0.06, green: 0.06, blue: 0.07, alpha: 1)] as CFArray,
+                              colors: [rgb(0xB8FFCE), rgb(0x3FCE8A)] as CFArray,
                               locations: [0, 1])!
-    cg.drawLinearGradient(gradient, start: CGPoint(x: s / 2, y: inset), end: CGPoint(x: s / 2, y: s - inset), options: [])
+    cg.drawLinearGradient(gradient, start: CGPoint(x: inset, y: inset),
+                          end: CGPoint(x: s - inset, y: s - inset), options: [])
 
-    // The fringe: three strokes hanging out of the notch.
-    let notchWidth: CGFloat = 600, notchHeight: CGFloat = 190
+    // The fringe: strands hanging out of the notch, which is drawn over their tops.
+    let notchWidth: CGFloat = 600, notchHeight: CGFloat = 196
     let notchX = (s - notchWidth) / 2, notchBottom = inset + notchHeight
     let strokeWidth: CGFloat = 52, gap: CGFloat = 28
-    let lengths: [CGFloat] = [210, 300, 250, 390, 265, 325, 215]
+    let lengths: [CGFloat] = [222, 318, 268, 412, 292, 350, 232]
     let total = CGFloat(lengths.count) * strokeWidth + CGFloat(lengths.count - 1) * gap
-    cg.setFillColor(accent)
+    cg.saveGState()
+    cg.setShadow(offset: CGSize(width: 0, height: -18), blur: 46, color: rgb(0x0B3A24, 0.35))
     for (index, length) in lengths.enumerated() {
         let x = (s - total) / 2 + CGFloat(index) * (strokeWidth + gap)
-        let rect = CGRect(x: x, y: notchBottom - 70, width: strokeWidth, height: length)
+        let rect = CGRect(x: x, y: notchBottom - 76, width: strokeWidth, height: length)
         cg.addPath(CGPath(roundedRect: rect, cornerWidth: strokeWidth / 2, cornerHeight: strokeWidth / 2, transform: nil))
     }
-    cg.fillPath()
-
-    cg.saveGState()
-    cg.translateBy(x: 0, y: inset)
-    cg.setShadow(offset: CGSize(width: 0, height: -14), blur: 40, color: CGColor(gray: 0, alpha: 0.7))
-    cg.addPath(notchPath(x: notchX, width: notchWidth, height: notchHeight, ear: 44, bottom: 84))
-    cg.setFillColor(CGColor(gray: 0, alpha: 1))
+    cg.setFillColor(ink)
     cg.fillPath()
     cg.restoreGState()
+
+    cg.saveGState()
+    cg.translateBy(x: 0, y: inset - 2)
+    cg.setShadow(offset: CGSize(width: 0, height: -16), blur: 44, color: rgb(0x0B3A24, 0.45))
+    cg.addPath(notchPath(x: notchX, width: notchWidth, height: notchHeight, ear: 44, bottom: 84))
+    cg.setFillColor(ink)
+    cg.fillPath()
+    cg.restoreGState()
+
+    // A hairline rim keeps the tile edge crisp on a light background.
+    cg.addPath(CGPath(roundedRect: tile.insetBy(dx: 1.5, dy: 1.5), cornerWidth: 183.5, cornerHeight: 183.5, transform: nil))
+    cg.setStrokeColor(rgb(0xFFFFFF, 0.30))
+    cg.setLineWidth(3)
+    cg.strokePath()
 }
 
 render(44, to: "\(dir)/tray-template.png") { cg, s in
