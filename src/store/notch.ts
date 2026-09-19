@@ -2,10 +2,11 @@ import { create } from "zustand";
 
 import type { Mode } from "../lib/layout";
 import type { Bootstrap, ScreenInfo, Settings } from "../lib/native";
+import { hasFreshActivity, useActivities } from "./activities";
 import { waitingSessions, useDev } from "./dev";
 import { isMediaLive, useMedia } from "./media";
 
-export type Section = "music" | "shelf" | "dev" | "paste";
+export type Section = "music" | "shelf" | "dev" | "paste" | "board";
 
 const COLLAPSE_DELAY_MS = 450;
 const DROP_LEAVE_DELAY_MS = 150;
@@ -62,6 +63,9 @@ export const useNotch = create<NotchStore>((set, get) => {
   const relevantSection = (): Section => {
     // A session waiting on an answer is the most urgent thing on screen.
     if (waitingSessions(useDev.getState().sessions).length) return "dev";
+    // A row that just arrived is news; one parked there is not, and should
+    // not keep the panel off whatever else is going on.
+    if (hasFreshActivity(useActivities.getState().items, Date.now())) return "board";
     const { media, lastActiveAt } = useMedia.getState();
     if (media?.playing) return "music";
     if (isMediaLive(media, lastActiveAt, Date.now())) return "music";
@@ -70,7 +74,7 @@ export const useNotch = create<NotchStore>((set, get) => {
 
   return {
     ready: false,
-    screen: { platform: "", hasNotch: false, notchWidth: 0, notchHeight: 0, menuBarHeight: 0, displayName: "" },
+    screen: { platform: "", hasNotch: false, notchWidth: 0, notchHeight: 0, menuBarHeight: 0, displayName: "", fullscreen: false },
     settings: {
       visible: true,
       expandOnHover: true,

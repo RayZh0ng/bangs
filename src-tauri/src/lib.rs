@@ -1,3 +1,4 @@
+mod activities;
 mod clipboard;
 mod dev;
 mod geometry;
@@ -13,6 +14,7 @@ mod update;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
+use activities::{Activity, ActivityHub};
 use dev::{DevHub, DevState};
 use geometry::{Geometry, ScreenInfo};
 use lyrics::{Lyrics, LyricsHub};
@@ -32,6 +34,8 @@ struct Bootstrap {
     lyrics: Lyrics,
     dev: DevState,
     clipboard: ClipboardState,
+    /// Rows other programs asked the notch to show; see docs/plugins.md.
+    activities: Vec<Activity>,
     drag_icon: Option<String>,
     /// "zh" or "en", resolved from the setting or the system.
     language: &'static str,
@@ -48,6 +52,7 @@ fn bootstrap(app: AppHandle) -> Bootstrap {
         lyrics: app.state::<LyricsHub>().current(),
         dev: app.state::<DevHub>().current(),
         clipboard: app.state::<ClipboardHub>().current(),
+        activities: app.state::<ActivityHub>().current(),
         drag_icon: shelf::drag_icon_path(&app),
         language: i18n::code(),
     }
@@ -110,6 +115,7 @@ pub fn run() {
             app.manage(LyricsHub::default());
             app.manage(DevHub::default());
             app.manage(ClipboardHub::default());
+            app.manage(ActivityHub::default());
             app.manage(UpdateState::default());
 
             platform::prepare_window(&handle)?;
@@ -120,6 +126,7 @@ pub fn run() {
             lyrics::start(handle.clone());
             dev::start(handle.clone());
             clipboard::start(handle.clone());
+            activities::start(handle.clone());
             tray::create(&handle)?;
             update::start(handle.clone());
             Ok(())
@@ -131,6 +138,7 @@ pub fn run() {
             set_cursor,
             media_command,
             dev::open_project,
+            activities::activity_open,
             clipboard::clipboard_use,
             clipboard::clipboard_open,
             clipboard::clipboard_clear,

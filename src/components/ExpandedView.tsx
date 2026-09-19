@@ -6,10 +6,12 @@ import { t } from "../lib/i18n";
 import type { Size } from "../lib/layout";
 import { useNotch, type Section } from "../store/notch";
 import { DevPanel } from "./DevPanel";
-import { ClipboardIcon, CodeIcon, MusicIcon, PinIcon, ShelfIcon } from "./Icons";
+import { ActivityPanel } from "./ActivityPanel";
+import { BoardIcon, ClipboardIcon, CodeIcon, MusicIcon, PinIcon, ShelfIcon } from "./Icons";
 import { MusicPanel } from "./MusicPanel";
 import { ClipboardPanel } from "./ClipboardPanel";
 import { ShelfPanel } from "./ShelfPanel";
+import { useActivities } from "../store/activities";
 import { useClipboard } from "../store/clipboard";
 
 const SECTIONS: { id: Section; label: () => string; Icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
@@ -17,6 +19,7 @@ const SECTIONS: { id: Section; label: () => string; Icon: ComponentType<SVGProps
   { id: "shelf", label: () => t("暂存", "Shelf"), Icon: ShelfIcon },
   { id: "dev", label: () => t("代码", "Code"), Icon: CodeIcon },
   { id: "paste", label: () => t("剪贴板", "Clipboard"), Icon: ClipboardIcon },
+  { id: "board", label: () => t("上岛", "Board"), Icon: BoardIcon },
 ];
 
 interface Props {
@@ -29,10 +32,14 @@ export function ExpandedView({ base, notchGap }: Props) {
   const section = useNotch((s) => s.section);
   const pinned = useNotch((s) => s.pinned);
   const hasClipboard = useClipboard((state) => state.available);
+  const hasActivities = useActivities((state) => state.items.length > 0);
   const isMac = useNotch((s) => s.screen.platform === "macos");
   const { selectSection, togglePin } = useNotch.getState();
   // The clipboard tab stays visible on macOS without Paste, to offer it.
-  const sections = SECTIONS.filter((entry) => entry.id !== "paste" || hasClipboard || isMac);
+  // The board only appears once something has docked, so the bar stays short.
+  const sections = SECTIONS.filter((entry) =>
+    entry.id === "paste" ? hasClipboard || isMac : entry.id !== "board" || hasActivities || section === "board",
+  );
 
   return (
     <div className="expanded">
@@ -68,6 +75,7 @@ export function ExpandedView({ base, notchGap }: Props) {
         {section === "shelf" && <ShelfPanel />}
         {section === "dev" && <DevPanel />}
         {section === "paste" && <ClipboardPanel />}
+        {section === "board" && <ActivityPanel />}
       </main>
     </div>
   );
