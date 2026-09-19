@@ -17,14 +17,16 @@ use std::sync::atomic::{AtomicIsize, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
 use windows::core::{implement, w, Ref, Result as WinResult};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::System::Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL};
+use windows::Win32::System::Com::{
+    IDataObject, ReleaseStgMedium, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL,
+};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Ole::{
     IDropTarget, IDropTarget_Impl, RegisterDragDrop, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY,
     DROPEFFECT_NONE,
 };
 use windows::Win32::System::SystemServices::MODIFIERKEYS_FLAGS;
-use windows::Win32::UI::Shell::{DragFinish, DragQueryFileW, HDROP};
+use windows::Win32::UI::Shell::{DragQueryFileW, HDROP};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, RegisterClassW, SetLayeredWindowAttributes, SetWindowPos,
     ShowWindow, HWND_TOPMOST, LWA_ALPHA, SWP_NOACTIVATE, SW_HIDE, SW_SHOWNOACTIVATE, WNDCLASSW,
@@ -42,10 +44,10 @@ static SHOWN: AtomicIsize = AtomicIsize::new(0);
 /// cursor tracker: a drag is in progress when the button went down outside the
 /// notch and the pointer is now inside it.
 pub fn set_catching(app: &AppHandle, catching: bool, rect: (i32, i32, i32, i32)) {
-    if (SHOWN.load(Ordering::Relaxed) != 0) == catching {
-        if !catching {
-            return;
-        }
+    let shown = SHOWN.load(Ordering::Relaxed) != 0;
+    // Hiding what is already hidden is the common case, every poll.
+    if !catching && !shown {
+        return;
     }
     SHOWN.store(catching as isize, Ordering::Relaxed);
 
@@ -133,7 +135,10 @@ struct Catcher {
 }
 
 impl Catcher {
-    /// The dropped paths, or none when the drag carries something else.
+    /// The dropped paths, or none when the drag carries something else. The
+    /// medium belongs to the drag source, so it is released, never freed with
+    /// `DragFinish` — doing that during a drag would pull the data out from
+    /// under the drop that follows.
     unsafe fn paths(data: Ref<'_, IDataObject>) -> Option<Vec<PathBuf>> {
         let format = FORMATETC {
             cfFormat: CF_HDROP.0,
@@ -142,7 +147,7 @@ impl Catcher {
             lindex: -1,
             tymed: TYMED_HGLOBAL.0 as u32,
         };
-        let medium = data.as_ref()?.GetData(&format).ok()?;
+        let mut medium = data.as_ref()?.GetData(&format).ok()?;
         let drop = HDROP(medium.u.hGlobal.0 as _);
 
         let count = DragQueryFileW(drop, u32::MAX, None);
@@ -156,7 +161,7 @@ impl Catcher {
             let written = DragQueryFileW(drop, index, Some(&mut buffer)) as usize;
             paths.push(PathBuf::from(String::from_utf16_lossy(&buffer[..written])));
         }
-        DragFinish(drop);
+        ReleaseStgMedium(&mut medium);
         Some(paths)
     }
 
