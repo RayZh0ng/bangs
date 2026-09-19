@@ -98,7 +98,6 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            eprintln!("[bangs] v{} starting", update::VERSION);
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
@@ -124,13 +123,6 @@ pub fn run() {
             tray::create(&handle)?;
             update::start(handle.clone());
             Ok(())
-        })
-        .on_window_event(|window, event| {
-            // Windows and macOS deliver drops through different plumbing; this
-            // says what actually arrived.
-            if let tauri::WindowEvent::DragDrop(drop) = event {
-                eprintln!("[drop] {}: {drop:?}", window.label());
-            }
         })
         .invoke_handler(tauri::generate_handler![
             bootstrap,

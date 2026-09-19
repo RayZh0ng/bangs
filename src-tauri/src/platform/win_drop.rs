@@ -58,7 +58,6 @@ pub fn set_catching(app: &AppHandle, catching: bool, rect: (i32, i32, i32, i32))
     }
     SHOWN.store(catching as isize, Ordering::Relaxed);
 
-    eprintln!("[drop] catching={catching} rect={rect:?}");
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         let hwnd = match catcher(&handle) {
@@ -206,7 +205,6 @@ impl IDropTarget_Impl for Catcher_Impl {
         effect: *mut DROPEFFECT,
     ) -> WinResult<()> {
         let paths = unsafe { dragged_paths(data) }.unwrap_or_default();
-        eprintln!("[drop] enter with {} path(s)", paths.len());
         unsafe { *effect = if paths.is_empty() { DROPEFFECT_NONE } else { DROPEFFECT_COPY } };
         if !paths.is_empty() {
             self.tell("bangs://drag-enter", &paths);
