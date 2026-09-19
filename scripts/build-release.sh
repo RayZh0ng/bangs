@@ -14,14 +14,17 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
 host="${BANGS_WIN_HOST:-win-gxl}"
-# Signing identity: the first Developer ID in the keychain unless one is given.
-# The hash is used rather than the name, which repeats when a certificate has
-# been imported twice and then matches ambiguously.
+# Signing identity: a Developer ID belonging to this app's team, which is not
+# necessarily the first one in the keychain — an employer's certificate can sit
+# above it, and notarization then fails because the team does not match the
+# credentials. The hash is used rather than the name, which repeats when a
+# certificate has been imported twice and then matches ambiguously.
+team="${BANGS_TEAM_ID:-W8L8ZJ3N2P}"
 identity="${APPLE_SIGNING_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null |
-  awk '/Developer ID Application/ { print $2; exit }')}"
+  awk -v team="$team" '/Developer ID Application/ && index($0, team) { print $2; exit }')}"
 # The keychain profile holding the notarization credentials; see
 # scripts/publish-release.md for the one command that creates it.
-notary="${BANGS_NOTARY_PROFILE:-}"
+notary="${BANGS_NOTARY_PROFILE:-bangs-notary}"
 remote_repo='D:\Develop\bangs-src\repo'
 version="$(node -p "require('./package.json').version")"
 out="$root/dist/release/v$version"
@@ -40,9 +43,15 @@ echo "== Bangs v$version =="
 if [[ $want_mac -eq 1 ]]; then
   echo "-- macOS --"
   if [[ -n "$identity" ]]; then
-    echo "签名身份 $identity"
+    echo "签名身份 $identity（团队 $team）"
   else
-    echo "没有 Developer ID 证书，打出来的包是未签名的" >&2
+    echo "钥匙串里没有 $team 的 Developer ID 证书，打出来的包是未签名的" >&2
+  fi
+  # Asking for the credentials is the only way to know they are there; without
+  # them the build still produces a signed bundle, it just is not notarized.
+  if [[ -n "$notary" ]] && ! xcrun notarytool history --keychain-profile "$notary" --limit 1 >/dev/null 2>&1; then
+    echo "钥匙串里没有 $notary 的公证凭据，这次只签名不公证（见 scripts/publish-release.md）" >&2
+    notary=""
   fi
   # `pnpm build` empties dist/, which is where $out lives, so it is made after.
   APPLE_SIGNING_IDENTITY="$identity" pnpm tauri build --bundles app,dmg

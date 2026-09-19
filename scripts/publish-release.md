@@ -26,8 +26,9 @@ scripts/publish-site.sh         # 站点推到 gh-pages
 
 ## 签名与公证（macOS）
 
-`build-release.sh` 会自动拿钥匙串里第一张 **Developer ID Application** 证书签名，
-连带 app 里那个 MediaRemote 桥接 dylib（公证不接受只有 ad-hoc 签名的二进制）。
+`build-release.sh` 会自动拿钥匙串里属于本项目团队（`W8L8ZJ3N2P`，可用 `BANGS_TEAM_ID` 改）的
+**Developer ID Application** 证书签名 —— 不能随便拿第一张：钥匙串里还有公司的证书，
+用它签出来的包团队和公证凭据对不上，公证会直接被拒。它连带签 app 里那个 MediaRemote 桥接 dylib（公证不接受只有 ad-hoc 签名的二进制）。
 硬化运行时（hardened runtime）是打开的，`src-tauri/entitlements.plist` 里那条
 `com.apple.security.automation.apple-events` 不能删 —— 少了它，公证后的版本
 控制 Spotify 会被系统直接拒掉。
@@ -37,12 +38,13 @@ scripts/publish-site.sh         # 站点推到 gh-pages
 ```bash
 xcrun notarytool store-credentials bangs-notary \
   --apple-id <你的 Apple ID> --team-id W8L8ZJ3N2P --password <App 专用密码>
-export BANGS_NOTARY_PROFILE=bangs-notary   # 建议写进 shell 配置
 ```
 
-App 专用密码在 https://account.apple.com 的「登录与安全 → App 专用密码」里生成。
-之后 `scripts/build-release.sh` 会自动公证 `.app` 和 `.dmg` 并 staple 票据，
-最后跑一次 `spctl` 验证。没设 `BANGS_NOTARY_PROFILE` 就只签名、不公证。
+App 专用密码在 https://account.apple.com 的「登录与安全 → App 专用密码」里生成，
+**只显示一次**，那一屏关掉就只能重建一个。凭据存在钥匙串里，`build-release.sh`
+默认就找 `bangs-notary` 这个名字（换名字用 `BANGS_NOTARY_PROFILE`），
+自动公证 `.app` 和 `.dmg` 并 staple 票据，最后跑一次 `spctl` 验证。
+钥匙串里没有这份凭据时，它会说一声然后只签名、不公证。
 
 装好之后确认一句话就够：`spctl -a -vv /Applications/Bangs.app` 说
 `accepted / source=Notarized Developer ID` 就对了。
