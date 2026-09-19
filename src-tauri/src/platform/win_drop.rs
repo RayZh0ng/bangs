@@ -38,6 +38,15 @@ static CATCHER: AtomicIsize = AtomicIsize::new(0);
 /// Whether it is currently over the notch.
 static SHOWN: AtomicIsize = AtomicIsize::new(0);
 
+/// Creates the catcher up front, so the first drag does not have to wait for
+/// it and any failure is reported once, at start-up.
+pub fn prepare(app: &AppHandle) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        catcher(&handle);
+    });
+}
+
 /// Shows or hides the catcher over `rect` (physical pixels). Called from the
 /// cursor tracker: a drag is in progress when the button went down outside the
 /// notch and the pointer is now inside it.
@@ -49,6 +58,7 @@ pub fn set_catching(app: &AppHandle, catching: bool, rect: (i32, i32, i32, i32))
     }
     SHOWN.store(catching as isize, Ordering::Relaxed);
 
+    eprintln!("[drop] catching={catching} rect={rect:?}");
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
         let hwnd = match catcher(&handle) {
@@ -76,7 +86,13 @@ fn catcher(app: &AppHandle) -> Option<HWND> {
     }
 
     unsafe {
-        let instance = GetModuleHandleW(None).ok()?;
+        let instance = match GetModuleHandleW(None) {
+            Ok(instance) => instance,
+            Err(error) => {
+                eprintln!("[drop] no module handle: {error}");
+                return None;
+            }
+        };
         let class = WNDCLASSW {
             lpfnWndProc: Some(catcher_proc),
             hInstance: instance.into(),
@@ -84,7 +100,9 @@ fn catcher(app: &AppHandle) -> Option<HWND> {
             ..Default::default()
         };
         // A second registration is harmless; the class already exists then.
-        RegisterClassW(&class);
+        if RegisterClassW(&class) == 0 {
+            eprintln!("[drop] window class: {}", windows::core::Error::from_win32());
+        }
 
         let hwnd = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
@@ -99,17 +117,24 @@ fn catcher(app: &AppHandle) -> Option<HWND> {
             None,
             Some(instance.into()),
             None,
-        )
-        .ok()?;
+        );
+        let hwnd = match hwnd {
+            Ok(hwnd) => hwnd,
+            Err(error) => {
+                eprintln!("[drop] no catcher window: {error}");
+                return None;
+            }
+        };
 
         // Almost transparent: invisible to the eye, still a drop target.
         let _ = SetLayeredWindowAttributes(hwnd, Default::default(), 1, LWA_ALPHA);
 
         let target: IDropTarget = Catcher { app: app.clone() }.into();
-        if RegisterDragDrop(hwnd, &target).is_err() {
-            eprintln!("[drop] could not register the drop target");
+        if let Err(error) = RegisterDragDrop(hwnd, &target) {
+            eprintln!("[drop] could not register the drop target: {error}");
             return None;
         }
+        eprintln!("[drop] catcher ready");
         // The target has to outlive this call; the window owns it from here.
         std::mem::forget(target);
 
@@ -181,6 +206,7 @@ impl IDropTarget_Impl for Catcher_Impl {
         effect: *mut DROPEFFECT,
     ) -> WinResult<()> {
         let paths = unsafe { dragged_paths(data) }.unwrap_or_default();
+        eprintln!("[drop] enter with {} path(s)", paths.len());
         unsafe { *effect = if paths.is_empty() { DROPEFFECT_NONE } else { DROPEFFECT_COPY } };
         if !paths.is_empty() {
             self.tell("bangs://drag-enter", &paths);
@@ -211,6 +237,7 @@ impl IDropTarget_Impl for Catcher_Impl {
         effect: *mut DROPEFFECT,
     ) -> WinResult<()> {
         let paths = unsafe { dragged_paths(data) }.unwrap_or_default();
+        eprintln!("[drop] dropped {} path(s)", paths.len());
         unsafe { *effect = DROPEFFECT_COPY };
         self.tell("bangs://drop", &paths);
         Ok(())

@@ -20,7 +20,8 @@ static HIDDEN_FOR_FULLSCREEN: AtomicBool = AtomicBool::new(false);
 
 /// Everything the window needs (topmost, no taskbar entry, WS_EX_NOACTIVATE
 /// via `focusable: false`) is declared in tauri.conf.json.
-pub fn prepare_window(_app: &AppHandle) -> tauri::Result<()> {
+pub fn prepare_window(app: &AppHandle) -> tauri::Result<()> {
+    super::win_drop::prepare(app);
     Ok(())
 }
 
