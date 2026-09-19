@@ -1,4 +1,4 @@
-import type { SVGProps } from "react";
+import type { ComponentType, SVGProps } from "react";
 
 type IconProps = SVGProps<SVGSVGElement>;
 
@@ -94,10 +94,12 @@ export const CodeIcon = (props: IconProps) => (
   </Stroke>
 );
 
+// Two sheets stacked, not a clipboard with a clip: at 13px the clip merges
+// into the outline and leaves an empty box.
 export const ClipboardIcon = (props: IconProps) => (
   <Stroke {...props}>
-    <rect x="4.7" y="5" width="14.6" height="15.4" rx="3.2" />
-    <rect x="9" y="2.6" width="6" height="4.2" rx="1.6" fill="currentColor" stroke="none" />
+    <rect x="8.6" y="3.2" width="11.2" height="13.4" rx="3" />
+    <path d="M15.4 20.8H7a2.8 2.8 0 0 1-2.8-2.8V8.2" />
   </Stroke>
 );
 
@@ -106,3 +108,33 @@ export const CheckIcon = (props: IconProps) => (
     <path d="M20 6 9 17l-5-5" />
   </Stroke>
 );
+
+/** The plugin board: a slot other programs dock a row into. */
+export const BoardIcon = (props: IconProps) => (
+  <Stroke {...props}>
+    <rect x="3" y="4.5" width="18" height="15" rx="3.2" />
+    <path d="M7.5 9.5h9M7.5 14h5" />
+  </Stroke>
+);
+
+/** The glyphs a plugin may name; anything else falls back to a dot. */
+const GLYPHS: Record<string, ComponentType<IconProps>> = {
+  board: BoardIcon,
+  music: MusicIcon,
+  shelf: ShelfIcon,
+  code: CodeIcon,
+  clipboard: ClipboardIcon,
+  folder: FolderIcon,
+  check: CheckIcon,
+  pin: PinIcon,
+};
+
+export function GlyphFor({ name, ...props }: Omit<IconProps, "name"> & { name?: string | null }) {
+  const Glyph = name ? GLYPHS[name] : undefined;
+  if (Glyph) return <Glyph {...props} />;
+  return (
+    <Solid {...props} viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4.5" />
+    </Solid>
+  );
+}

@@ -1211,3 +1211,50 @@ button:disabled,
     animation: none;
   }
 }
+
+.row__icon--glyph {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+/* A plugin's progress, in the space the timestamp would take. */
+.meter {
+  width: 54px;
+  height: 4px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--fill-strong);
+  overflow: hidden;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--focus);
+  transition: width 0.3s var(--ease-out);
+}
+
+/* A docked row's title beside the notch, with its progress under it. */
+.compact__docked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 0;
+}
+
+.compact__docked-title {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meter--compact {
+  width: 44px;
+  height: 3px;
+}
