@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { t } from "../lib/i18n";
-import { centerGap, lyricWidth, WING } from "../lib/layout";
+import { centerGap, lyricArtWing, lyricWidth, WING } from "../lib/layout";
 import type { LyricWord, MediaState, ScreenInfo } from "../lib/native";
 import { CodeIcon, MusicIcon, PauseIcon, ShelfIcon } from "./Icons";
 import { KaraokeLine } from "./KaraokeLine";
@@ -22,7 +22,7 @@ export function CompactView({ activity, screen }: { activity: Activity; screen: 
 
   return (
     <div className="compact">
-      <div className="compact__wing compact__wing--start" style={{ width: WING }}>
+      <div className="compact__wing compact__wing--start" style={{ width: lyric ? lyricArtWing(screen) : WING }}>
         {attention > 0 ? (
           <span className="compact__glyph compact__glyph--attention"><CodeIcon /></span>
         ) : media ? (
@@ -50,7 +50,7 @@ export function CompactView({ activity, screen }: { activity: Activity; screen: 
         {attention > 0 ? (
           <span className="compact__attention">{attention > 1 ? t(`${attention} 个等你`, `${attention} waiting`) : t("等你回复", "Waiting for you")}</span>
         ) : lyric ? (
-          <CompactLyric lyric={lyric} />
+          <CompactLyric lyric={lyric} fromEnd={screen.hasNotch} />
         ) : media ? (
           media.playing ? <Equalizer /> : <span className="compact__glyph"><PauseIcon /></span>
         ) : (
@@ -65,7 +65,7 @@ export function CompactView({ activity, screen }: { activity: Activity; screen: 
  * The line being sung in the strip. The line before it does not disappear the
  * moment the next one starts: it slides up and out from under it.
  */
-function CompactLyric({ lyric }: { lyric: NonNullable<Activity["lyric"]> }) {
+function CompactLyric({ lyric, fromEnd }: { lyric: NonNullable<Activity["lyric"]>; fromEnd: boolean }) {
   const [leaving, setLeaving] = useState<{ key: number; text: string } | null>(null);
   const shown = useRef(lyric);
 
@@ -79,7 +79,7 @@ function CompactLyric({ lyric }: { lyric: NonNullable<Activity["lyric"]> }) {
   }, [lyric]);
 
   return (
-    <span className="lyric-swap">
+    <span className={`lyric-swap${fromEnd ? " lyric-swap--from-end" : ""}`}>
       {leaving && (
         <span key={leaving.key} className="lyric-swap__out">
           {leaving.text}

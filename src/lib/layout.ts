@@ -48,6 +48,15 @@ export function lyricWidth(screen: ScreenInfo): number {
   return screen.hasNotch ? LYRIC_WING : LYRIC_STRIP;
 }
 
+/**
+ * The wing carrying the artwork while a lyric is showing. Beside a cutout it
+ * matches the other wing; on a flat strip it only has to hold the artwork, and
+ * a narrower one keeps the lyric next to the cover instead of adrift.
+ */
+export function lyricArtWing(screen: ScreenInfo): number {
+  return screen.hasNotch ? WING : 50;
+}
+
 export function notchSize(
   mode: Mode,
   screen: ScreenInfo,
@@ -68,7 +77,7 @@ export function notchSize(
       // can, and only grows for a lyric, which is unreadable at strip height.
       if (lyric) {
         const height = screen.hasNotch ? base.height : Math.max(base.height, LYRIC_HEIGHT);
-        return { width: gap + WING + lyricWidth(screen), height };
+        return { width: gap + lyricArtWing(screen) + lyricWidth(screen), height };
       }
       if (hasActivity) return { width: Math.max(base.width, gap + WING * 2), height: base.height };
       if (settings.idleHandle && !screen.hasNotch) return HANDLE;
