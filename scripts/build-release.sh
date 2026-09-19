@@ -27,15 +27,16 @@ case "${1:-}" in
   *) echo "用法: $0 [--mac|--windows]" >&2; exit 1 ;;
 esac
 
-mkdir -p "$out"
 echo "== Bangs v$version =="
 
 if [[ $want_mac -eq 1 ]]; then
   echo "-- macOS --"
+  # `pnpm build` empties dist/, which is where $out lives, so it is made after.
   pnpm tauri build --bundles app,dmg
   bundle="$root/src-tauri/target/release/bundle"
   # Tauri's own name for the architecture; older bundles of other versions stay
   # in that directory, so the file is named, never globbed.
+  mkdir -p "$out"
   arch="$([[ "$(uname -m)" == "arm64" ]] && echo aarch64 || echo x64)"
   dmg="$bundle/dmg/Bangs_${version}_${arch}.dmg"
   [[ -f "$dmg" ]] || { echo "没找到 $dmg" >&2; exit 1; }
@@ -46,6 +47,7 @@ fi
 
 if [[ $want_windows -eq 1 ]]; then
   echo "-- Windows ($host) --"
+  mkdir -p "$out"
   bundle="$root/dist/release/.bundle.$$"
   git bundle create "$bundle" HEAD >/dev/null
   scp -q "$bundle" "$host:D:/Develop/bangs-src/release.bundle"
