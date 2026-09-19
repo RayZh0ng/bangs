@@ -7,6 +7,7 @@ import { useNow } from "../lib/useNow";
 import { waitingSessions, useDev } from "../store/dev";
 import { lineAt, useLyrics } from "../store/lyrics";
 import { elapsedAt, isMediaLive, useMedia } from "../store/media";
+import { useActivities } from "../store/activities";
 import { useNotch } from "../store/notch";
 import { useShelf } from "../store/shelf";
 import { CompactView, type Activity } from "./CompactView";
@@ -23,6 +24,7 @@ export function Notch() {
   const shelfCount = useShelf((s) => s.items.length);
   const waiting = useDev((s) => waitingSessions(s.sessions).length);
   const lyricLines = useLyrics((s) => s.lines);
+  const docked = useActivities((s) => s.items[0] ?? null);
 
   // The lyric sweep needs a fast clock; everything else here is slow.
   const now = useNow(media?.playing && lyricLines.length ? 80 : 5_000);
@@ -42,8 +44,9 @@ export function Notch() {
         }
       : null;
 
-  const activity: Activity = { attention: waiting, media: live, lyric, shelfCount };
-  const hasActivity = activity.attention > 0 || !!activity.media || activity.shelfCount > 0;
+  const activity: Activity = { attention: waiting, docked, media: live, lyric, shelfCount };
+  const hasActivity =
+    activity.attention > 0 || !!activity.docked || !!activity.media || activity.shelfCount > 0;
 
   const base = baseNotch(screen);
   const size = notchSize(mode, screen, settings, hasActivity, mode === "compact" && !!lyric);

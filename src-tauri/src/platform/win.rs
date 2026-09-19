@@ -112,6 +112,12 @@ pub fn notch_metrics(_monitor: &Monitor) -> NotchMetrics {
     NotchMetrics::default()
 }
 
+/// Windows answers the question outright (see `sync_fullscreen_visibility`),
+/// so the notch never has to measure windows itself.
+pub fn fullscreen_over(_rect: (f64, f64, f64, f64)) -> bool {
+    false
+}
+
 /// A topmost window would otherwise sit on top of full-screen video, games and
 /// presentations, so step aside while one is running.
 pub fn sync_fullscreen_visibility(app: &AppHandle) {

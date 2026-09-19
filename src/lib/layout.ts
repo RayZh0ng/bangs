@@ -72,6 +72,9 @@ export function notchSize(
     case "success":
       return { width: Math.max(DROP.width, base.width + 160), height: base.height + DROP.body };
     case "compact": {
+      // Full-screen video gets the whole display: shrink to the bar rather
+      // than float a black pill over it. A cutout screen never reports this.
+      if (screen.fullscreen) return HANDLE;
       const gap = centerGap(screen);
       // A hardware notch fixes the height. A drawn strip stays as slim as it
       // can, and only grows for a lyric, which is unreadable at strip height.

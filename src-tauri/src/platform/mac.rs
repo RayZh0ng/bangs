@@ -4,7 +4,7 @@ use std::ptr;
 use objc2::rc::Retained;
 use objc2::MainThreadMarker;
 use objc2_app_kit::{NSCursor, NSRunningApplication, NSScreen};
-use objc2_foundation::{NSLocale, NSString};
+use objc2_foundation::{ns_string, NSLocale, NSString};
 use tauri::{AppHandle, Manager, Monitor};
 use tauri_nspanel::{CollectionBehavior, ManagerExt, PanelLevel, StyleMask, WebviewWindowExt};
 
@@ -41,16 +41,28 @@ const COMBINED_SESSION_STATE: i32 = 0;
 const LEFT_BUTTON: u32 = 0;
 const RIGHT_BUTTON: u32 = 1;
 
+const WINDOWS_ON_SCREEN: u32 = 1 << 0;
+const WINDOWS_EXCLUDE_DESKTOP: u32 = 1 << 4;
+const CF_NUMBER_DOUBLE: i32 = 13;
+/// How far a window may miss the display's edges and still count as covering
+/// it; some players are a pixel off.
+const COVER_SLACK: f64 = 2.0;
+
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
     fn CGEventCreate(source: *const c_void) -> *mut c_void;
     fn CGEventGetLocation(event: *const c_void) -> CGPoint;
     fn CGEventSourceButtonState(state: i32, button: u32) -> bool;
+    fn CGWindowListCopyWindowInfo(option: u32, relative_to: u32) -> *const c_void;
 }
 
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
     fn CFRelease(object: *const c_void);
+    fn CFArrayGetCount(array: *const c_void) -> isize;
+    fn CFArrayGetValueAtIndex(array: *const c_void, index: isize) -> *const c_void;
+    fn CFDictionaryGetValue(dictionary: *const c_void, key: *const c_void) -> *const c_void;
+    fn CFNumberGetValue(number: *const c_void, kind: i32, value: *mut c_void) -> bool;
 }
 
 /// Turns the Tauri window into a non-activating NSPanel above the menu bar.
@@ -172,6 +184,76 @@ pub fn open_in_editor(editor: &str, path: &str) -> Result<(), String> {
         .success()
         .then_some(())
         .ok_or_else(|| format!("{app} could not open {path}"))
+}
+
+/// One number out of a CFDictionary the window list handed over.
+fn dict_number(dictionary: *const c_void, key: &NSString) -> Option<f64> {
+    let value = unsafe { CFDictionaryGetValue(dictionary, (key as *const NSString).cast()) };
+    if value.is_null() {
+        return None;
+    }
+    let mut number = 0f64;
+    let read = unsafe {
+        CFNumberGetValue(value, CF_NUMBER_DOUBLE, (&mut number as *mut f64).cast())
+    };
+    read.then_some(number)
+}
+
+/// True while a window covers the whole of `rect` — full-screen video, a game,
+/// a presentation. `rect` is logical, top-left based, the space the window
+/// list reports bounds in.
+///
+/// Only geometry is read. Window bounds are public; their titles are what
+/// needs the screen-recording permission, and those are never asked for.
+pub fn fullscreen_over(rect: (f64, f64, f64, f64)) -> bool {
+    let (left, top, width, height) = rect;
+    if width <= 0.0 || height <= 0.0 {
+        return false;
+    }
+    let list = unsafe { CGWindowListCopyWindowInfo(WINDOWS_ON_SCREEN | WINDOWS_EXCLUDE_DESKTOP, 0) };
+    if list.is_null() {
+        return false;
+    }
+    let own_pid = f64::from(std::process::id());
+    let mut covered = false;
+    for index in 0..unsafe { CFArrayGetCount(list) } {
+        let window = unsafe { CFArrayGetValueAtIndex(list, index) };
+        if window.is_null() {
+            continue;
+        }
+        // Layer 0 is an ordinary application window. The menu bar, the Dock,
+        // the wallpaper and this notch itself all sit on other layers.
+        if dict_number(window, ns_string!("kCGWindowLayer")) != Some(0.0) {
+            continue;
+        }
+        if dict_number(window, ns_string!("kCGWindowOwnerPID")) == Some(own_pid) {
+            continue;
+        }
+        let bounds = unsafe {
+            CFDictionaryGetValue(window, (ns_string!("kCGWindowBounds") as *const NSString).cast())
+        };
+        if bounds.is_null() {
+            continue;
+        }
+        let (Some(x), Some(y), Some(w), Some(h)) = (
+            dict_number(bounds, ns_string!("X")),
+            dict_number(bounds, ns_string!("Y")),
+            dict_number(bounds, ns_string!("Width")),
+            dict_number(bounds, ns_string!("Height")),
+        ) else {
+            continue;
+        };
+        if (x - left).abs() <= COVER_SLACK
+            && (y - top).abs() <= COVER_SLACK
+            && (w - width).abs() <= COVER_SLACK
+            && (h - height).abs() <= COVER_SLACK
+        {
+            covered = true;
+            break;
+        }
+    }
+    unsafe { CFRelease(list) };
+    covered
 }
 
 /// Unique, human readable display name. tao reports "Monitor #<model>" on

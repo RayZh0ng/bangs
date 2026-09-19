@@ -19,9 +19,14 @@ wants "Run anyway" once.
 - **Clipboard**: on macOS the panel mirrors gxlself's own Paste app (`gxlself.paste-tool`) and
   offers to install it when it is missing; on Windows, where there is no Paste, Bangs records the
   history itself. Click an entry to put it back on the clipboard.
+- **Board**: anything else on the machine can dock a row — a title, a subtitle, a progress bar and
+  at most a link — by writing a JSON file, or by posting to a loopback endpoint. The newest row
+  shows beside the collapsed notch. See [docs/plugins.md](docs/plugins.md).
 
-Screens with a hardware notch get wings around it; other screens get a virtual notch (or a thin bar,
-see the tray menu).
+Screens with a hardware notch get wings around it; other screens get a virtual notch, which shrinks
+to a thin bar when nothing is happening (the tray menu can turn that off). Full-screen video, games
+and presentations get the screen to themselves: the notch collapses to that bar on macOS and hides
+altogether on Windows — unless the screen has a real cutout, where it was never in the way.
 
 ## Develop
 
@@ -74,6 +79,7 @@ The clipboard panel asks Paste for its panel with `open pasteg://panel`, which P
 | Notch size | `NSScreen.safeAreaInsets` / `auxiliaryTop*Area` | Virtual only |
 | Dev panel | Claude Code / Codex session state and VS Code / Cursor state | Same, using Windows application-data paths |
 | Clipboard | Paste's Core Data store, read-only | Bangs' own history |
+| Full screen | A layer-0 window covering the display (`CGWindowListCopyWindowInfo`) | `SHQueryUserNotificationState` |
 | Lyrics | QQ Music lyric endpoint, cached on disk | Same |
 
 The host window is a fixed 640 x 280 transparent window in logical pixels. The visible notch animates
