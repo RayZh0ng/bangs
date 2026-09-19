@@ -14,16 +14,14 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicIsize, Ordering};
 
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use windows::core::{implement, w, Ref, Result as WinResult};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::System::Com::{
-    IDataObject, ReleaseStgMedium, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL,
-};
+use windows::Win32::System::Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Ole::{
-    IDropTarget, IDropTarget_Impl, RegisterDragDrop, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY,
-    DROPEFFECT_NONE,
+    IDropTarget, IDropTarget_Impl, RegisterDragDrop, ReleaseStgMedium, CF_HDROP, DROPEFFECT,
+    DROPEFFECT_COPY, DROPEFFECT_NONE,
 };
 use windows::Win32::System::SystemServices::MODIFIERKEYS_FLAGS;
 use windows::Win32::UI::Shell::{DragQueryFileW, HDROP};
@@ -134,12 +132,12 @@ struct Catcher {
     app: AppHandle,
 }
 
-impl Catcher {
-    /// The dropped paths, or none when the drag carries something else. The
-    /// medium belongs to the drag source, so it is released, never freed with
-    /// `DragFinish` — doing that during a drag would pull the data out from
-    /// under the drop that follows.
-    unsafe fn paths(data: Ref<'_, IDataObject>) -> Option<Vec<PathBuf>> {
+/// The paths a drag carries, or none when it carries something else. The
+/// medium belongs to the drag source, so it is released, never freed with
+/// `DragFinish` — doing that during a drag would pull the data out from under
+/// the drop that follows.
+unsafe fn dragged_paths(data: Ref<'_, IDataObject>) -> Option<Vec<PathBuf>> {
+    unsafe {
         let format = FORMATETC {
             cfFormat: CF_HDROP.0,
             ptd: std::ptr::null_mut(),
@@ -164,9 +162,12 @@ impl Catcher {
         ReleaseStgMedium(&mut medium);
         Some(paths)
     }
+}
 
+impl Catcher {
     fn tell(&self, event: &str, paths: &[PathBuf]) {
-        let paths: Vec<String> = paths.iter().map(|path| path.to_string_lossy().into_owned()).collect();
+        let paths: Vec<String> =
+            paths.iter().map(|path| path.to_string_lossy().into_owned()).collect();
         let _ = self.app.emit(event, paths);
     }
 }
@@ -179,7 +180,7 @@ impl IDropTarget_Impl for Catcher_Impl {
         _point: &POINTL,
         effect: *mut DROPEFFECT,
     ) -> WinResult<()> {
-        let paths = unsafe { Self::paths(data) }.unwrap_or_default();
+        let paths = unsafe { dragged_paths(data) }.unwrap_or_default();
         unsafe { *effect = if paths.is_empty() { DROPEFFECT_NONE } else { DROPEFFECT_COPY } };
         if !paths.is_empty() {
             self.tell("bangs://drag-enter", &paths);
@@ -209,7 +210,7 @@ impl IDropTarget_Impl for Catcher_Impl {
         _point: &POINTL,
         effect: *mut DROPEFFECT,
     ) -> WinResult<()> {
-        let paths = unsafe { Self::paths(data) }.unwrap_or_default();
+        let paths = unsafe { dragged_paths(data) }.unwrap_or_default();
         unsafe { *effect = DROPEFFECT_COPY };
         self.tell("bangs://drop", &paths);
         Ok(())

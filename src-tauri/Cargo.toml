@@ -40,6 +40,8 @@ objc2-app-kit = "0.3"
 objc2-foundation = "0.3"
 
 [target.'cfg(windows)'.dependencies]
+# The `implement` macro expands to paths in this crate.
+windows-core = "0.61"
 windows = { version = "0.61", features = [
   "Foundation",
   "Media_Control",
