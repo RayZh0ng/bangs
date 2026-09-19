@@ -23,10 +23,17 @@ pub struct FileMeta {
 /// thumbnails of exactly these files and nothing else.
 #[tauri::command]
 pub fn shelf_inspect(app: AppHandle, paths: Vec<String>) -> Vec<FileMeta> {
-    paths
+    let asked = paths.len();
+    let files: Vec<FileMeta> = paths
         .into_iter()
         .filter_map(|path| {
-            let metadata = std::fs::metadata(&path).ok()?;
+            let metadata = match std::fs::metadata(&path) {
+                Ok(metadata) => metadata,
+                Err(error) => {
+                    eprintln!("[shelf] cannot read {path}: {error}");
+                    return None;
+                }
+            };
             let file = Path::new(&path);
             let extension = file
                 .extension()
@@ -48,7 +55,11 @@ pub fn shelf_inspect(app: AppHandle, paths: Vec<String>) -> Vec<FileMeta> {
                 is_image,
             })
         })
-        .collect()
+        .collect();
+    if files.len() != asked {
+        eprintln!("[shelf] {asked} path(s) offered, {} usable", files.len());
+    }
+    files
 }
 
 #[tauri::command]
