@@ -14,6 +14,14 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
 host="${BANGS_WIN_HOST:-win-gxl}"
+# Signing identity: the first Developer ID in the keychain unless one is given.
+# The hash is used rather than the name, which repeats when a certificate has
+# been imported twice and then matches ambiguously.
+identity="${APPLE_SIGNING_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null |
+  awk '/Developer ID Application/ { print $2; exit }')}"
+# The keychain profile holding the notarization credentials; see
+# scripts/publish-release.md for the one command that creates it.
+notary="${BANGS_NOTARY_PROFILE:-}"
 remote_repo='D:\Develop\bangs-src\repo'
 version="$(node -p "require('./package.json').version")"
 out="$root/dist/release/v$version"
@@ -31,8 +39,13 @@ echo "== Bangs v$version =="
 
 if [[ $want_mac -eq 1 ]]; then
   echo "-- macOS --"
+  if [[ -n "$identity" ]]; then
+    echo "签名身份 $identity"
+  else
+    echo "没有 Developer ID 证书，打出来的包是未签名的" >&2
+  fi
   # `pnpm build` empties dist/, which is where $out lives, so it is made after.
-  pnpm tauri build --bundles app,dmg
+  APPLE_SIGNING_IDENTITY="$identity" pnpm tauri build --bundles app,dmg
   bundle="$root/src-tauri/target/release/bundle"
   # Tauri's own name for the architecture; older bundles of other versions stay
   # in that directory, so the file is named, never globbed.
@@ -40,9 +53,29 @@ if [[ $want_mac -eq 1 ]]; then
   arch="$([[ "$(uname -m)" == "arm64" ]] && echo aarch64 || echo x64)"
   dmg="$bundle/dmg/Bangs_${version}_${arch}.dmg"
   [[ -f "$dmg" ]] || { echo "没找到 $dmg" >&2; exit 1; }
+  app="$bundle/macos/Bangs.app"
+  if [[ -n "$notary" ]]; then
+    # Notarize the app first, staple it, and only then wrap it up: a stapled
+    # ticket has to be inside whatever people download.
+    echo "-- 公证 --"
+    ditto -c -k --keepParent "$app" "$bundle/macos/Bangs-notarize.zip"
+    xcrun notarytool submit "$bundle/macos/Bangs-notarize.zip" \
+      --keychain-profile "$notary" --wait
+    xcrun stapler staple "$app"
+    rm -f "$bundle/macos/Bangs-notarize.zip"
+    xcrun notarytool submit "$dmg" --keychain-profile "$notary" --wait
+    xcrun stapler staple "$dmg"
+  else
+    echo "没有设置 BANGS_NOTARY_PROFILE，跳过公证（见 scripts/publish-release.md）" >&2
+  fi
   # A zipped .app is what people who dislike mounting a disk image want.
-  ditto -c -k --keepParent "$bundle/macos/Bangs.app" "$out/Bangs_${version}_${arch}.app.zip"
+  ditto -c -k --keepParent "$app" "$out/Bangs_${version}_${arch}.app.zip"
   cp "$dmg" "$out/Bangs_${version}_${arch}.dmg"
+
+  if [[ -n "$notary" ]]; then
+    echo "-- Gatekeeper --"
+    spctl --assess --type execute --verbose=2 "$app" 2>&1 | tail -2
+  fi
 fi
 
 if [[ $want_windows -eq 1 ]]; then

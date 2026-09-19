@@ -24,11 +24,33 @@ scripts/publish-site.sh         # 站点推到 gh-pages
 **资产文件名必须保留 `.dmg` / `.app.zip` / `setup.exe` / `.msi` 后缀** —— 官网靠后缀认哪个是哪个平台的包
 （见 `site/app.js` 里的 `MAC` / `WINDOWS` 两个正则），应用内的「检查更新」只认 `tag_name`。
 
-## 两端都没签名
+## 签名与公证（macOS）
 
-- macOS：第一次打开要去「系统设置 → 隐私与安全性 → 仍要打开」，或者
-  `xattr -dr com.apple.quarantine /Applications/Bangs.app`。
-- Windows：SmartScreen 会拦，点「更多信息 → 仍要运行」。
+`build-release.sh` 会自动拿钥匙串里第一张 **Developer ID Application** 证书签名，
+连带 app 里那个 MediaRemote 桥接 dylib（公证不接受只有 ad-hoc 签名的二进制）。
+硬化运行时（hardened runtime）是打开的，`src-tauri/entitlements.plist` 里那条
+`com.apple.security.automation.apple-events` 不能删 —— 少了它，公证后的版本
+控制 Spotify 会被系统直接拒掉。
+
+公证凭据存一次就够，**密码只经过你的手**：
+
+```bash
+xcrun notarytool store-credentials bangs-notary \
+  --apple-id <你的 Apple ID> --team-id W8L8ZJ3N2P --password <App 专用密码>
+export BANGS_NOTARY_PROFILE=bangs-notary   # 建议写进 shell 配置
+```
+
+App 专用密码在 https://account.apple.com 的「登录与安全 → App 专用密码」里生成。
+之后 `scripts/build-release.sh` 会自动公证 `.app` 和 `.dmg` 并 staple 票据，
+最后跑一次 `spctl` 验证。没设 `BANGS_NOTARY_PROFILE` 就只签名、不公证。
+
+装好之后确认一句话就够：`spctl -a -vv /Applications/Bangs.app` 说
+`accepted / source=Notarized Developer ID` 就对了。
+
+## Windows 没签名
+
+SmartScreen 会拦，点「更多信息 → 仍要运行」。Windows 的签名要另买证书（EV 或 OV），
+目前没有。
 
 ## Windows 构建机
 

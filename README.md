@@ -5,8 +5,9 @@ A dynamic notch for macOS and Windows, built with Tauri 2 + React by gxlself
 the notch, and expands on hover.
 
 **[Download](https://github.com/gxlself/bangs/releases/latest)** ·
-**[bangs site](https://gxlself.github.io/bangs/)** — neither build is code signed, so macOS wants
-"Open anyway" in Privacy & Security the first time and Windows SmartScreen wants "Run anyway".
+**[bangs site](https://gxlself.github.io/bangs/)** — the macOS build is signed with a Developer ID
+and notarized, so it opens on a double click; the Windows installer is unsigned, so SmartScreen
+wants "Run anyway" once.
 
 - **Now playing**: artwork, progress and play/pause/skip/seek for the current system media session,
   with timed lyrics — the line being sung shows next to the collapsed notch, three lines in the panel
@@ -52,9 +53,11 @@ scripts/build-release.sh        # .dmg + .app.zip here, .exe + .msi over ssh on 
 scripts/publish-site.sh         # site/ to the gh-pages branch
 ```
 
-`scripts/publish-release.md` has the full checklist, including what the asset names have to look
-like: both the site and the in-app check read the GitHub release, and the site picks the right
-download by file extension.
+`scripts/publish-release.md` has the full checklist: the asset names both the site and the in-app
+version check depend on, and the one command that stores the notarization credentials
+(`BANGS_NOTARY_PROFILE`). Signing happens automatically from the keychain's Developer ID; the
+hardened runtime needs `src-tauri/entitlements.plist`, whose Apple Events entitlement is what keeps
+the Spotify panel working in a notarized build.
 
 Lyrics come from QQ Music's public lyric endpoint: only the track title and artist are sent, every
 result is cached under the app cache directory, and the tray menu can turn the lookup off entirely.
