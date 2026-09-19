@@ -147,6 +147,7 @@ export const native = {
   setHitRect: (width: number, height: number) => invoke<void>("set_hit_rect", { width, height }),
   /** The webview cannot set the cursor itself here; see src/lib/hover.ts. */
   setCursor: (shape: "default" | "pointer" | "grab") => invoke<void>("set_cursor", { shape }),
+  logDomDrag: (kind: string, count: number) => invoke<void>("log_dom_drag", { kind, count }),
   media: (command: MediaCommand) => invoke<void>("media_command", { command }),
   openProject: (path: string, editor?: string) => invoke<void>("open_project", { path, editor }),
   clipboardUse: (id: number) => invoke<void>("clipboard_use", { id }),

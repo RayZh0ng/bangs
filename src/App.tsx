@@ -38,6 +38,7 @@ export default function App() {
       events.dev(handleDev),
       events.clipboard((clipboard) => useClipboard.getState().update(clipboard)),
       getCurrentWebview().onDragDropEvent((event) => void handleDragDrop(event.payload)),
+      watchDomDrags(),
     ];
 
     // Subscribe first, then snapshot, so no update falls in between.
@@ -64,6 +65,26 @@ export default function App() {
   }, []);
 
   return ready ? <Notch /> : null;
+}
+
+/** Diagnostic: does the webview see drags the window never reports? */
+function watchDomDrags() {
+  const report = (kind: string) => (event: Event) => {
+    event.preventDefault();
+    const items = (event as DragEvent).dataTransfer?.items?.length ?? 0;
+    native.logDomDrag(kind, items).catch(() => {});
+  };
+  const enter = report("dragenter");
+  const over = report("dragover");
+  const drop = report("drop");
+  window.addEventListener("dragenter", enter);
+  window.addEventListener("dragover", over);
+  window.addEventListener("drop", drop);
+  return Promise.resolve(() => {
+    window.removeEventListener("dragenter", enter);
+    window.removeEventListener("dragover", over);
+    window.removeEventListener("drop", drop);
+  });
 }
 
 async function handleDragDrop(event: DragDropEvent) {
