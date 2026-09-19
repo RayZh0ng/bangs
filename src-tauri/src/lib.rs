@@ -67,13 +67,6 @@ fn set_hit_rect(app: AppHandle, width: f64, height: f64) {
     geometry::set_hit_rect(&app, width, height);
 }
 
-/// Diagnostic: says whether the webview itself sees a drag, which is a
-/// different path from the drop events the window reports.
-#[tauri::command]
-fn log_dom_drag(kind: String, count: usize) {
-    eprintln!("[dom] {kind} with {count} item(s)");
-}
-
 #[tauri::command]
 fn set_cursor(app: AppHandle, shape: String) {
     platform::set_cursor(&app, &shape);
@@ -144,7 +137,6 @@ pub fn run() {
             notch_ready,
             set_hit_rect,
             set_cursor,
-            log_dom_drag,
             media_command,
             dev::open_project,
             clipboard::clipboard_use,

@@ -6,7 +6,11 @@ pub use mac::*;
 #[cfg(windows)]
 mod win;
 #[cfg(windows)]
+mod win_drop;
+#[cfg(windows)]
 pub use win::*;
+#[cfg(windows)]
+pub use win_drop::set_catching;
 
 /// Hardware notch and menu bar measurements of a monitor, in logical px.
 #[derive(Debug, Clone, Copy, Default)]

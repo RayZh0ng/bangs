@@ -38,7 +38,12 @@ export default function App() {
       events.dev(handleDev),
       events.clipboard((clipboard) => useClipboard.getState().update(clipboard)),
       getCurrentWebview().onDragDropEvent((event) => void handleDragDrop(event.payload)),
-      watchDomDrags(),
+      // Windows catches its own drops; see src-tauri/src/platform/win_drop.rs.
+      events.dragEnter((paths) => {
+        if (paths.length) useNotch.getState().dragEntered();
+      }),
+      events.dragLeave(() => useNotch.getState().dragLeft()),
+      events.drop((paths) => void handleDrop(paths)),
     ];
 
     // Subscribe first, then snapshot, so no update falls in between.
@@ -67,26 +72,6 @@ export default function App() {
   return ready ? <Notch /> : null;
 }
 
-/** Diagnostic: does the webview see drags the window never reports? */
-function watchDomDrags() {
-  const report = (kind: string) => (event: Event) => {
-    event.preventDefault();
-    const items = (event as DragEvent).dataTransfer?.items?.length ?? 0;
-    native.logDomDrag(kind, items).catch(() => {});
-  };
-  const enter = report("dragenter");
-  const over = report("dragover");
-  const drop = report("drop");
-  window.addEventListener("dragenter", enter);
-  window.addEventListener("dragover", over);
-  window.addEventListener("drop", drop);
-  return Promise.resolve(() => {
-    window.removeEventListener("dragenter", enter);
-    window.removeEventListener("dragover", over);
-    window.removeEventListener("drop", drop);
-  });
-}
-
 async function handleDragDrop(event: DragDropEvent) {
   const notch = useNotch.getState();
   switch (event.type) {
@@ -97,10 +82,15 @@ async function handleDragDrop(event: DragDropEvent) {
       notch.dragLeft();
       break;
     case "drop":
-      if (notch.draggingOut) break;
-      notch.dropped(dropMessage(await useShelf.getState().add(event.paths)));
+      await handleDrop(event.paths);
       break;
   }
+}
+
+async function handleDrop(paths: string[]) {
+  const notch = useNotch.getState();
+  if (notch.draggingOut) return;
+  notch.dropped(dropMessage(await useShelf.getState().add(paths)));
 }
 
 /** How long an alert keeps the panel open when nobody looks at it. */

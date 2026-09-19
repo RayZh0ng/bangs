@@ -147,7 +147,6 @@ export const native = {
   setHitRect: (width: number, height: number) => invoke<void>("set_hit_rect", { width, height }),
   /** The webview cannot set the cursor itself here; see src/lib/hover.ts. */
   setCursor: (shape: "default" | "pointer" | "grab") => invoke<void>("set_cursor", { shape }),
-  logDomDrag: (kind: string, count: number) => invoke<void>("log_dom_drag", { kind, count }),
   media: (command: MediaCommand) => invoke<void>("media_command", { command }),
   openProject: (path: string, editor?: string) => invoke<void>("open_project", { path, editor }),
   clipboardUse: (id: number) => invoke<void>("clipboard_use", { id }),
@@ -170,6 +169,12 @@ export const events = {
   outsideClick: (handler: () => void) => listen("bangs://outside-click", () => handler()),
   language: (handler: (language: string) => void) =>
     listen<string>("bangs://language", (event) => handler(event.payload)),
+  /** Windows only: drops the notch caught itself (see platform/win_drop.rs). */
+  dragEnter: (handler: (paths: string[]) => void) =>
+    listen<string[]>("bangs://drag-enter", (event) => handler(event.payload)),
+  dragLeave: (handler: () => void) => listen("bangs://drag-leave", () => handler()),
+  drop: (handler: (paths: string[]) => void) =>
+    listen<string[]>("bangs://drop", (event) => handler(event.payload)),
   screen: (handler: (screen: ScreenInfo) => void) =>
     listen<ScreenInfo>("bangs://screen", (event) => handler(event.payload)),
   settings: (handler: (settings: Settings) => void) =>

@@ -71,6 +71,21 @@ impl Geometry {
         self.0.lock().unwrap().hidden = hidden;
     }
 
+    /// The hit rect in the cursor's own coordinates: where a drop has to be
+    /// caught on Windows (see platform::win_drop).
+    #[cfg(windows)]
+    fn hit_rect_on_screen(&self) -> Option<(i32, i32, i32, i32)> {
+        let inner = self.0.lock().unwrap();
+        let placement = inner.placement.filter(|_| !inner.hidden)?;
+        let left = placement.x + (WINDOW_WIDTH - inner.hit_width) / 2.0 * placement.scale;
+        Some((
+            left.round() as i32,
+            placement.y.round() as i32,
+            (inner.hit_width * placement.scale).round() as i32,
+            (inner.hit_height * placement.scale).round() as i32,
+        ))
+    }
+
     /// Converts a cursor position to window-local logical px, returning it
     /// only when it falls inside the hit rect.
     fn locate(&self, (cursor_x, cursor_y): (f64, f64)) -> Option<(f64, f64)> {
@@ -236,6 +251,10 @@ pub fn spawn_cursor_tracker(app: AppHandle) {
         let mut inside = false;
         let mut was_down = false;
         let mut last_pointer = None;
+        // A press that began outside the notch and is still held is how a drag
+        // from another window looks from here; only Windows needs to know.
+        #[cfg(windows)]
+        let mut press_began_outside = false;
 
         loop {
             thread::sleep(CURSOR_POLL);
@@ -256,10 +275,32 @@ pub fn spawn_cursor_tracker(app: AppHandle) {
             last_pointer = pointer;
 
             let down = platform::mouse_button_down();
-            if down && !was_down && !inside {
-                let _ = app.emit("bangs://outside-click", ());
+            if down && !was_down {
+                #[cfg(windows)]
+                {
+                    press_began_outside = !inside;
+                }
+                if !inside {
+                    let _ = app.emit("bangs://outside-click", ());
+                }
+            }
+            #[cfg(windows)]
+            if !down {
+                press_began_outside = false;
             }
             was_down = down;
+
+            // Windows never hands this window a drop, so it is caught with a
+            // window of our own while such a drag is over the notch.
+            #[cfg(windows)]
+            {
+                let dragging_in = down && press_began_outside && inside;
+                if let Some(rect) = app.state::<Geometry>().hit_rect_on_screen() {
+                    platform::set_catching(&app, dragging_in, rect);
+                } else {
+                    platform::set_catching(&app, false, (0, 0, 0, 0));
+                }
+            }
         }
     });
 }
