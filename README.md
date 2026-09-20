@@ -19,6 +19,10 @@ wants "Run anyway" once.
 - **Clipboard**: on macOS the panel mirrors gxlself's own Paste app (`gxlself.paste-tool`) and
   offers to install it when it is missing; on Windows, where there is no Paste, Bangs records the
   history itself. Click an entry to put it back on the clipboard.
+- **To-do**: a short list you type into — the one place the notch takes the keyboard, and only while
+  the field is focused. Click a line when it is done and it comes apart and blows off the list;
+  nothing is kept. A new line waits beside the collapsed notch for a few minutes unless something
+  is playing.
 - **Board**: anything else on the machine can dock a row — a title, a subtitle, a progress bar and
   at most a link — by writing a JSON file, or by posting to a loopback endpoint. The newest row
   shows beside the collapsed notch. See [docs/plugins.md](docs/plugins.md).
@@ -80,6 +84,7 @@ The clipboard panel asks Paste for its panel with `open pasteg://panel`, which P
 | Dev panel | Claude Code / Codex session state and VS Code / Cursor state | Same, using Windows application-data paths |
 | Clipboard | Paste's Core Data store, read-only | Bangs' own history |
 | Full screen | A layer-0 window covering the display (`CGWindowListCopyWindowInfo`) | `SHQueryUserNotificationState` |
+| Keyboard | The panel is made key while the to-do field is focused, and resigns it after | `WS_EX_NOACTIVATE` comes off for as long, then focus goes back |
 | Lyrics | QQ Music lyric endpoint, cached on disk | Same |
 
 The host window is a fixed 640 x 280 transparent window in logical pixels. The visible notch animates
@@ -121,6 +126,7 @@ src/                       React UI
   store/                   zustand stores: notch state machine, media, shelf
     dev.ts                 agent sessions, workspaces and busy-to-idle/waiting detection
     clipboard.ts           clipboard history, copy feedback and platform actions
+    TodoPanel.tsx          the to-do list and the field that takes the keyboard
   lib/layout.ts            notch sizes per mode (keep WINDOW in sync with geometry.rs)
   lib/hover.ts             pointer-driven [data-hover] workaround
     lyrics.ts              current lines and the line-at-time lookup
@@ -137,6 +143,7 @@ src-tauri/src/
   clipboard/mod.rs         shared clipboard panel state and commands
   clipboard/mac.rs         read-only Paste store, copy and panel hand-off
   clipboard/win.rs         Bangs' own clipboard history
+  todos.rs                 the to-do list, saved in <config>/todos.json
   shelf.rs                 file metadata, open/reveal, drag preview
   tray.rs, settings.rs      tray menu and persisted settings
 site/                      the landing page published to gh-pages

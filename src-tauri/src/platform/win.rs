@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 
 use tauri::{AppHandle, Manager, Monitor};
 use windows::Win32::Foundation::POINT;
@@ -9,8 +9,13 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 use windows::Win32::UI::Shell::{
     SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
 };
+use windows::Win32::Foundation::HWND;
 use windows::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
-use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetCursorPos, GetForegroundWindow, GetWindowLongPtrW, SetForegroundWindow, SetWindowLongPtrW,
+    GWL_EXSTYLE, WS_EX_NOACTIVATE,
+};
 
 use super::NotchMetrics;
 use crate::settings::SettingsState;
@@ -63,6 +68,40 @@ pub fn system_language() -> String {
 
 /// WebView2 gets the mouse moves, so the stylesheet's own cursor applies.
 pub fn set_cursor(_app: &AppHandle, _shape: &str) {}
+
+/// The window under the pointer before the notch took the keyboard, so typing
+/// in the to-do field can hand focus straight back to it.
+static PREVIOUS_FOREGROUND: AtomicIsize = AtomicIsize::new(0);
+
+/// Takes keyboard input, or hands it back. `WS_EX_NOACTIVATE` is what keeps a
+/// click on the notch from pulling focus out of whatever is in front, so it
+/// only comes off while a field here is focused.
+pub fn set_keyboard_capture(app: &AppHandle, capture: bool) {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW) else { return };
+    let Ok(handle) = window.hwnd() else { return };
+
+    unsafe {
+        let style = GetWindowLongPtrW(handle, GWL_EXSTYLE);
+        let no_activate = WS_EX_NOACTIVATE.0 as isize;
+        if capture {
+            // Whatever was in front, unless it is already the notch: handing
+            // focus back to ourselves would strand the keyboard here.
+            let foreground = GetForegroundWindow();
+            if foreground != handle {
+                PREVIOUS_FOREGROUND.store(foreground.0 as isize, Ordering::Relaxed);
+            }
+            SetWindowLongPtrW(handle, GWL_EXSTYLE, style & !no_activate);
+            let _ = SetForegroundWindow(handle);
+            let _ = SetFocus(Some(handle));
+        } else {
+            SetWindowLongPtrW(handle, GWL_EXSTYLE, style | no_activate);
+            let previous = PREVIOUS_FOREGROUND.swap(0, Ordering::Relaxed);
+            if previous != 0 {
+                let _ = SetForegroundWindow(HWND(previous as *mut _));
+            }
+        }
+    }
+}
 
 pub fn set_window_visible(app: &AppHandle, visible: bool) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {

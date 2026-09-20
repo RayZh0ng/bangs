@@ -7,10 +7,11 @@ import type { Size } from "../lib/layout";
 import { useNotch, type Section } from "../store/notch";
 import { DevPanel } from "./DevPanel";
 import { ActivityPanel } from "./ActivityPanel";
-import { BoardIcon, ClipboardIcon, CodeIcon, MusicIcon, PinIcon, ShelfIcon } from "./Icons";
+import { BoardIcon, ClipboardIcon, CodeIcon, MusicIcon, PinIcon, ShelfIcon, TodoIcon } from "./Icons";
 import { MusicPanel } from "./MusicPanel";
 import { ClipboardPanel } from "./ClipboardPanel";
 import { ShelfPanel } from "./ShelfPanel";
+import { TodoPanel } from "./TodoPanel";
 import { useActivities } from "../store/activities";
 import { useClipboard } from "../store/clipboard";
 
@@ -19,6 +20,7 @@ const SECTIONS: { id: Section; label: () => string; Icon: ComponentType<SVGProps
   { id: "shelf", label: () => t("暂存", "Shelf"), Icon: ShelfIcon },
   { id: "dev", label: () => t("代码", "Code"), Icon: CodeIcon },
   { id: "paste", label: () => t("剪贴板", "Clipboard"), Icon: ClipboardIcon },
+  { id: "todo", label: () => t("待办", "To-do"), Icon: TodoIcon },
   { id: "board", label: () => t("上岛", "Board"), Icon: BoardIcon },
 ];
 
@@ -75,6 +77,7 @@ export function ExpandedView({ base, notchGap }: Props) {
         {section === "shelf" && <ShelfPanel />}
         {section === "dev" && <DevPanel />}
         {section === "paste" && <ClipboardPanel />}
+        {section === "todo" && <TodoPanel />}
         {section === "board" && <ActivityPanel />}
       </main>
     </div>

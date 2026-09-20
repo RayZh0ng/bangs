@@ -5,8 +5,9 @@ import type { Bootstrap, ScreenInfo, Settings } from "../lib/native";
 import { hasFreshActivity, useActivities } from "./activities";
 import { waitingSessions, useDev } from "./dev";
 import { isMediaLive, useMedia } from "./media";
+import { useTodos } from "./todos";
 
-export type Section = "music" | "shelf" | "dev" | "paste" | "board";
+export type Section = "music" | "shelf" | "dev" | "paste" | "board" | "todo";
 
 const COLLAPSE_DELAY_MS = 450;
 const DROP_LEAVE_DELAY_MS = 150;
@@ -44,6 +45,13 @@ let dropLeaveTimer: number | undefined;
 let successTimer: number | undefined;
 let modeBeforeDrop: Mode = "compact";
 
+/** Gives the keyboard back, from wherever the panel is being closed. */
+function stopTyping() {
+  if (!useTodos.getState().typing) return;
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  useTodos.getState().setTyping(false);
+}
+
 function clearTimers() {
   window.clearTimeout(collapseTimer);
   window.clearTimeout(dropLeaveTimer);
@@ -55,6 +63,12 @@ export const useNotch = create<NotchStore>((set, get) => {
     window.clearTimeout(collapseTimer);
     collapseTimer = window.setTimeout(() => {
       const { mode, hovering, pinned, draggingOut } = get();
+      // A half-typed to-do is not something to close out from under the user;
+      // ask again in a moment rather than dropping the timer altogether.
+      if (useTodos.getState().typing) {
+        scheduleCollapse();
+        return;
+      }
       if (mode === "expanded" && !hovering && !pinned && !draggingOut) get().collapse();
     }, COLLAPSE_DELAY_MS);
   };
@@ -112,6 +126,8 @@ export const useNotch = create<NotchStore>((set, get) => {
     outsideClicked() {
       // A drag-out that never reported back must not keep the panel open.
       set({ draggingOut: false });
+      // Clicking into another app is done typing, whatever the field thinks.
+      stopTyping();
       // Pinning is for keeping the panel open while you work elsewhere, so a
       // click in another window must not close it; the pin does that.
       if (get().mode === "expanded" && !get().pinned) get().collapse();
@@ -129,6 +145,7 @@ export const useNotch = create<NotchStore>((set, get) => {
 
     collapse() {
       clearTimers();
+      stopTyping();
       set({ mode: "compact", pinned: false });
     },
 

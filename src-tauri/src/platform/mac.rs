@@ -20,7 +20,10 @@ mod panel {
     tauri_nspanel::tauri_panel! {
         panel!(NotchPanel {
             config: {
-                can_become_key_window: false,
+                // Only ever to type in the to-do field, and only when asked:
+                // `becomes_key_only_if_needed` keeps a click on the notch from
+                // taking the key window away from whatever is in front.
+                can_become_key_window: true,
                 can_become_main_window: false,
                 is_floating_panel: true,
                 hides_on_deactivate: false
@@ -84,7 +87,23 @@ pub fn prepare_window(app: &AppHandle) -> tauri::Result<()> {
             .into(),
     );
     panel.set_has_shadow(false);
+    panel.set_becomes_key_only_if_needed(true);
     Ok(())
+}
+
+/// Takes keyboard input, or hands it back. The panel is non-activating, so the
+/// app in front stays active either way; while this is on it loses the key
+/// window, which is the price of a caret in the to-do field.
+pub fn set_keyboard_capture(app: &AppHandle, capture: bool) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        let Ok(panel) = handle.get_webview_panel(MAIN_WINDOW) else { return };
+        if capture {
+            panel.make_key_window();
+        } else {
+            panel.resign_key_window();
+        }
+    });
 }
 
 pub fn set_window_visible(app: &AppHandle, visible: bool) {
@@ -113,6 +132,7 @@ pub fn set_cursor(app: &AppHandle, shape: &str) {
         let cursor = match shape.as_str() {
             "pointer" => NSCursor::pointingHandCursor(),
             "grab" => NSCursor::openHandCursor(),
+            "text" => NSCursor::IBeamCursor(),
             _ => NSCursor::arrowCursor(),
         };
         cursor.set();

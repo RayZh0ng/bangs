@@ -40,7 +40,7 @@ export function hoverAt(point: [number, number] | null) {
   if (top === target) return;
   target = top;
   const asked = top ? getComputedStyle(top).cursor : "default";
-  const wanted = asked === "pointer" || asked === "grab" ? asked : "default";
+  const wanted = asked === "pointer" || asked === "grab" || asked === "text" ? asked : "default";
   if (wanted === shape) return;
   shape = wanted;
   native.setCursor(wanted).catch(() => {});

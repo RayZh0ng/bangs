@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { t } from "../lib/i18n";
 import { centerGap, lyricArtWing, lyricWidth, WING } from "../lib/layout";
-import type { Activity as DockedRow, LyricWord, MediaState, ScreenInfo } from "../lib/native";
-import { CodeIcon, GlyphFor, MusicIcon, PauseIcon, ShelfIcon } from "./Icons";
+import type { Activity as DockedRow, LyricWord, MediaState, ScreenInfo, Todo } from "../lib/native";
+import { CodeIcon, GlyphFor, MusicIcon, PauseIcon, ShelfIcon, TodoIcon } from "./Icons";
 import { KaraokeLine } from "./KaraokeLine";
 
 export interface Activity {
@@ -14,16 +14,18 @@ export interface Activity {
   media: MediaState | null;
   /** The line being sung right now, when the player has lyrics. */
   lyric: { text: string; words?: LyricWord[]; from: number; to: number; elapsed: number } | null;
+  /** The to-do just written down, while it is still worth a reminder. */
+  todo: Todo | null;
   shelfCount: number;
 }
 
 /** Live activity beside the notch, or straight across a screen without one. */
 export function CompactView({ activity, screen }: { activity: Activity; screen: ScreenInfo }) {
-  const { attention, docked, media, lyric, shelfCount } = activity;
+  const { attention, docked, media, lyric, todo, shelfCount } = activity;
   // Out of the way of full-screen video: the strip the layout shrinks to has
   // no room for any of this, and squashed artwork looks like a glitch.
   if (screen.fullscreen) return null;
-  if (!attention && !docked && !media && shelfCount === 0) return null;
+  if (!attention && !docked && !media && !todo && shelfCount === 0) return null;
 
   return (
     <div className="compact">
@@ -32,6 +34,8 @@ export function CompactView({ activity, screen }: { activity: Activity; screen: 
           <span className="compact__glyph compact__glyph--attention"><CodeIcon /></span>
         ) : docked ? (
           <span className="compact__glyph"><GlyphFor name={docked.icon} /></span>
+        ) : todo ? (
+          <span className="compact__glyph"><TodoIcon /></span>
         ) : media ? (
           media.artwork ? (
             <img key={media.artwork} className="compact__art" src={media.artwork} alt="" />
@@ -67,6 +71,8 @@ export function CompactView({ activity, screen }: { activity: Activity; screen: 
           </span>
         ) : lyric ? (
           <CompactLyric lyric={lyric} fromEnd={screen.hasNotch} />
+        ) : todo ? (
+          <span className="compact__docked-title">{todo.text}</span>
         ) : media ? (
           media.playing ? <Equalizer /> : <span className="compact__glyph"><PauseIcon /></span>
         ) : (

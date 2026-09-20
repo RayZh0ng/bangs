@@ -109,6 +109,21 @@ export const CheckIcon = (props: IconProps) => (
   </Stroke>
 );
 
+export const PlusIcon = (props: IconProps) => (
+  <Stroke {...props}>
+    <path d="M12 5.5v13M5.5 12h13" />
+  </Stroke>
+);
+
+/** A list with things ticked off it. */
+export const TodoIcon = (props: IconProps) => (
+  <Stroke {...props}>
+    <path d="m3.5 7.7 2.2 2.2 3.8-4.4" />
+    <path d="m3.5 16.5 2.2 2.2 3.8-4.4" />
+    <path d="M13.5 8.4H21M13.5 17.2H21" />
+  </Stroke>
+);
+
 /** The plugin board: a slot other programs dock a row into. */
 export const BoardIcon = (props: IconProps) => (
   <Stroke {...props}>
@@ -126,6 +141,7 @@ const GLYPHS: Record<string, ComponentType<IconProps>> = {
   clipboard: ClipboardIcon,
   folder: FolderIcon,
   check: CheckIcon,
+  todo: TodoIcon,
   pin: PinIcon,
 };
 

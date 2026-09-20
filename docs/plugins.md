@@ -40,7 +40,7 @@ Delete the file to take the row down. Bangs notices either within a second.
 | `title` | string, required | The line itself. Beside the notch this is all that is read. |
 | `subtitle` | string | Second line in the panel. |
 | `id` | string | Defaults to the file name. `A–Z a–z 0–9 - _`, up to 64 characters. |
-| `icon` | string | One of `board` `music` `shelf` `code` `clipboard` `folder` `check` `pin`. Anything else draws a neutral dot. |
+| `icon` | string | One of `board` `music` `shelf` `code` `clipboard` `folder` `check` `todo` `pin`. Anything else draws a neutral dot. |
 | `progress` | number | `0`–`1`. Draws a bar, in the panel and beside the notch. |
 | `url` | string | `http://` or `https://` only. Clicking the row opens it in the default browser. |
 | `expiresAt` | number | Unix seconds. The row leaves on its own and the file is deleted. |
