@@ -255,3 +255,4 @@ pub fn open_download_page() -> Result<(), String> {
         .map_err(|error| error.to_string())
         .and_then(|status| status.success().then_some(()).ok_or_else(|| t("无法打开下载页", "Could not open the download page").to_string()))
 }
+
