@@ -82,7 +82,8 @@ export const useNotch = create<NotchStore>((set, get) => {
     if (hasFreshActivity(useActivities.getState().items, Date.now())) return "board";
     const { media, lastActiveAt } = useMedia.getState();
     if (media?.playing) return "music";
-    if (isMediaLive(media, lastActiveAt, Date.now())) return "music";
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (isMediaLive(media, lastActiveAt, now)) return "music";
     return get().section;
   };
 

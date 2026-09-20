@@ -10,7 +10,7 @@ and notarized, so it opens on a double click; the Windows installer is unsigned,
 wants "Run anyway" once.
 
 - **Now playing**: artwork, progress and play/pause/skip/seek for the current system media session,
-  with timed lyrics — the line being sung shows next to the collapsed notch, three lines in the panel
+  with timed lyrics — the line being sung shows next to the collapsed notch, two lines with translation in the panel
 - **File shelf**: drop files on the notch to park them, drag them back out to other apps
 - **Dev panel**: Claude Code and Codex CLI sessions with busy/waiting/idle status in one list, and
   the projects VS Code and Cursor have open, grouped per editor with their git branch. Click a row
@@ -68,8 +68,10 @@ version check depend on, and the one command that stores the notarization creden
 hardened runtime needs `src-tauri/entitlements.plist`, whose Apple Events entitlement is what keeps
 the Spotify panel working in a notarized build.
 
-Lyrics come from QQ Music's public lyric endpoint: only the track title and artist are sent, every
-result is cached under the app cache directory, and the tray menu can turn the lookup off entirely.
+Lyrics use a player-aware public-provider fallback chain built from QQ Music and NetEase. A result is
+accepted when it contains timed original lyrics; matched translations are shown when available. Only
+track metadata is sent, successful results are cached under the app cache directory, and the tray menu
+can turn the lookup off entirely.
 
 The clipboard panel asks Paste for its panel with `open pasteg://panel`, which Paste answers in
 `AppDelegate.application(_:open:)`; older Paste builds only get activated instead.
@@ -85,7 +87,7 @@ The clipboard panel asks Paste for its panel with `open pasteg://panel`, which P
 | Clipboard | Paste's Core Data store, read-only | Bangs' own history |
 | Full screen | A layer-0 window covering the display (`CGWindowListCopyWindowInfo`) | `SHQueryUserNotificationState` |
 | Keyboard | The panel is made key while the to-do field is focused, and resigns it after | `WS_EX_NOACTIVATE` comes off for as long, then focus goes back |
-| Lyrics | QQ Music lyric endpoint, cached on disk | Same |
+| Lyrics | QQ Music and NetEase, cached on disk | Same |
 
 The host window is a fixed 640 x 280 transparent window in logical pixels. The visible notch animates
 inside it, and a native thread polls the cursor every 33 ms (`src-tauri/src/geometry.rs`) to:

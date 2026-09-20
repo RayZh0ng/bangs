@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 
-/** Re-renders every `intervalMs` while `active`, returning `Date.now()`. */
-export function useNow(intervalMs: number, active = true): number {
-  const [now, setNow] = useState(Date.now);
+/** Wall time by default for session/clipboard ages; playback opts into monotonic time. */
+export function useNow(intervalMs: number, active = true, monotonic = false): number {
+  const readNow = () => monotonic ? performance.now() : Date.now();
+  const [now, setNow] = useState(readNow);
 
   useEffect(() => {
     if (!active) return;
-    setNow(Date.now());
-    const id = window.setInterval(() => setNow(Date.now()), intervalMs);
+    setNow(readNow());
+    const id = window.setInterval(() => setNow(readNow()), intervalMs);
     return () => window.clearInterval(id);
-  }, [intervalMs, active]);
+  }, [intervalMs, active, monotonic]);
 
   return now;
 }
