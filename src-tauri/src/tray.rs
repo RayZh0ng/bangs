@@ -100,10 +100,17 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 }
 
 /// Rebuilds the menu so check marks and the display list stay current.
+///
+/// Always on the main thread. The monitors are named by AppKit, which answers
+/// nowhere else, so a menu built on the version-check thread or the display
+/// watcher came back with an empty display list and replaced the good one.
 pub fn refresh(app: &AppHandle) {
-    if let (Some(tray), Ok(menu)) = (app.tray_by_id(TRAY_ID), build_menu(app)) {
-        let _ = tray.set_menu(Some(menu));
-    }
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let (Some(tray), Ok(menu)) = (handle.tray_by_id(TRAY_ID), build_menu(&handle)) {
+            let _ = tray.set_menu(Some(menu));
+        }
+    });
 }
 
 fn handle_menu(app: &AppHandle, id: &str) {
