@@ -27,6 +27,13 @@ const REFERER: &str = "https://y.qq.com/portal/player.html";
 /// Search results to weigh. Wide enough that a track still turns up when the
 /// artist term misleads the ranking and its album-mates come first.
 const SEARCH_RESULTS: usize = 20;
+/// How far a result's length may sit from the one the player reports and still
+/// be taken for the same recording. Two masters of a song are a second or two
+/// apart; a cover or a live take is tens of seconds.
+const DURATION_SLACK: f64 = 10.0;
+/// Bumped whenever the matching changes enough that what an older version
+/// picked is not to be trusted — a cached file may hold a cover's timeline.
+const CACHE_VERSION: u32 = 2;
 const TIMEOUT: Duration = Duration::from_secs(8);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -74,6 +81,9 @@ struct Request {
     track: String,
     title: String,
     artist: String,
+    /// Track length in seconds, when the player reports one. The surest way to
+    /// tell a recording from a cover of it.
+    duration: Option<f64>,
 }
 
 /// Identifies a track across restarts; also the cache key.
@@ -103,6 +113,7 @@ pub fn sync(app: &AppHandle, media: Option<&MediaState>) {
         track,
         title: media.title.clone(),
         artist: media.artist.clone(),
+        duration: media.duration,
     };
     let sender = hub.requests.lock().unwrap().clone();
     if let Some(sender) = sender {
@@ -146,6 +157,7 @@ fn run(app: AppHandle, requests: Receiver<Request>) {
         .ok();
     if let Some(dir) = &cache_dir {
         let _ = fs::create_dir_all(dir);
+        sweep_old_cache(dir);
     }
 
     while let Ok(request) = requests.recv() {
@@ -161,7 +173,8 @@ fn run(app: AppHandle, requests: Receiver<Request>) {
         let lines = match cached {
             Some(lines) => lines,
             None => {
-                let lines = fetch(&request.title, &request.artist).unwrap_or_default();
+                let lines =
+                    fetch(&request.title, &request.artist, request.duration).unwrap_or_default();
                 // Never cache a miss: the lookup may just have been offline.
                 if !lines.is_empty() {
                     if let (Some(path), Ok(raw)) = (&path, serde_json::to_string(&lines)) {
@@ -182,7 +195,20 @@ fn run(app: AppHandle, requests: Receiver<Request>) {
 fn cache_name(track: &str) -> String {
     let mut hasher = DefaultHasher::new();
     track.hash(&mut hasher);
-    format!("{:016x}.json", hasher.finish())
+    format!("{CACHE_VERSION}-{:016x}.json", hasher.finish())
+}
+
+/// Throws away what an older version cached. Those files were matched by rules
+/// this one no longer trusts, and a wrong lyric looks like a broken one.
+fn sweep_old_cache(dir: &std::path::Path) {
+    let prefix = format!("{CACHE_VERSION}-");
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.ends_with(".json") && !name.starts_with(&prefix) {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
 }
 
 fn client() -> Option<reqwest::blocking::Client> {
@@ -205,7 +231,7 @@ fn encode(value: &str) -> String {
         .collect()
 }
 
-fn fetch(title: &str, artist: &str) -> Option<Vec<LyricLine>> {
+fn fetch(title: &str, artist: &str, duration: Option<f64>) -> Option<Vec<LyricLine>> {
     let client = client()?;
     // Spotify decorates its titles ("- Remastered 2011", "(feat. …)") and
     // lists every artist; the plain form is what a lyric search understands,
@@ -223,7 +249,9 @@ fn fetch(title: &str, artist: &str) -> Option<Vec<LyricLine>> {
     // a different song with a similar name.
     push_query(&mut queries, plain_title.clone(), true);
     for (query, exact_title) in queries {
-        if let Some(lines) = lookup(&client, &query, &plain_title, &plain_artist, exact_title) {
+        if let Some(lines) =
+            lookup(&client, &query, &plain_title, &plain_artist, duration, exact_title)
+        {
             return Some(lines);
         }
     }
@@ -259,6 +287,7 @@ fn lookup(
     query: &str,
     title: &str,
     artist: &str,
+    duration: Option<f64>,
     exact_title: bool,
 ) -> Option<Vec<LyricLine>> {
     let response = client
@@ -281,7 +310,7 @@ fn lookup(
     };
 
     let songs = search["data"]["song"]["list"].as_array()?;
-    let song = best_match(songs, title, artist, exact_title)?;
+    let song = best_match(songs, title, artist, duration, exact_title)?;
     let song_mid = song["songmid"].as_str().unwrap_or_default().to_string();
 
     // Per-character timing first; the plain LRC endpoint is the fallback.
@@ -339,6 +368,7 @@ fn best_match<'a>(
     songs: &'a [serde_json::Value],
     title: &str,
     artist: &str,
+    duration: Option<f64>,
     exact_title: bool,
 ) -> Option<&'a serde_json::Value> {
     let wanted_title = normalize(title);
@@ -373,21 +403,41 @@ fn best_match<'a>(
         (title_score, artist_score)
     };
 
-    let mut best: Option<(&serde_json::Value, i32)> = None;
+    // How far this recording is from the one playing, when both lengths are
+    // known. An unknown one is worth nothing and loses to any known match.
+    let gap = |song: &serde_json::Value| match (duration, song["interval"].as_f64()) {
+        (Some(wanted), Some(interval)) if wanted > 0.0 && interval > 0.0 => {
+            Some((interval - wanted).abs())
+        }
+        _ => None,
+    };
+
+    let mut best: Option<(&serde_json::Value, i32, f64)> = None;
     for song in songs {
         let (title_score, artist_score) = score(song);
         if title_score == 0 || (exact_title && title_score < 2) {
             continue;
         }
+        // A recording of a different length is a different recording. A cover
+        // carries the same words on a timeline of its own, which reads as
+        // lyrics that drift — worse than no lyrics at all.
+        let gap = gap(song);
+        if gap.is_some_and(|gap| gap > DURATION_SLACK) {
+            continue;
+        }
         let total = title_score + artist_score;
+        let gap = gap.unwrap_or(f64::MAX);
         // The endpoint has already ranked what it returned, so a later song
-        // has to beat the one in hand outright: a duet or a remix of the same
-        // song scores the same as the original and must not displace it.
-        if best.is_none_or(|(_, best_total)| total > best_total) {
-            best = Some((song, total));
+        // has to beat the one in hand outright — by scoring higher, or by
+        // being the length the player is playing.
+        let better = best.is_none_or(|(_, best_total, best_gap)| {
+            total > best_total || (total == best_total && gap < best_gap)
+        });
+        if better {
+            best = Some((song, total, gap));
         }
     }
-    best.map(|(song, _)| song)
+    best.map(|(song, _, _)| song)
 }
 
 /// Downloads the QRC document and turns it into timed lines. The response is
@@ -570,8 +620,24 @@ mod tests {
         })
     }
 
+    fn song_of(name: &str, singers: &[&str], interval: i64) -> serde_json::Value {
+        let mut song = song(name, singers);
+        song["interval"] = serde_json::json!(interval);
+        song
+    }
+
     fn pick<'a>(songs: &'a [serde_json::Value], title: &str, artist: &str, exact: bool) -> Option<&'a str> {
-        best_match(songs, title, artist, exact).map(|song| song["songname"].as_str().unwrap())
+        best_match(songs, title, artist, None, exact).map(|song| song["songname"].as_str().unwrap())
+    }
+
+    fn pick_lasting<'a>(
+        songs: &'a [serde_json::Value],
+        title: &str,
+        artist: &str,
+        duration: f64,
+    ) -> Option<&'a str> {
+        best_match(songs, title, artist, Some(duration), false)
+            .map(|song| song["songname"].as_str().unwrap())
     }
 
     #[test]
@@ -580,7 +646,7 @@ mod tests {
         // original first.
         let songs = [song("无法长大", &["赵雷"]), song("无法长大", &["张大为", "赵雷"])];
         assert_eq!(pick(&songs, "无法长大", "赵雷", false), Some("无法长大"));
-        assert!(std::ptr::eq(best_match(&songs, "无法长大", "赵雷", false).unwrap(), &songs[0]));
+        assert!(std::ptr::eq(best_match(&songs, "无法长大", "赵雷", None, false).unwrap(), &songs[0]));
     }
 
     #[test]
@@ -608,6 +674,24 @@ mod tests {
         // Apple Music hands over 當時的月亮; QQ Music lists 当时的月亮.
         let songs = [song("当时的月亮", &["王菲"])];
         assert_eq!(pick(&songs, "當時的月亮", "Faye Wong", true), Some("当时的月亮"));
+    }
+
+    #[test]
+    fn turns_down_a_cover_of_the_right_length_elsewhere() {
+        // 小宇: the cover the search ranks first runs 269s, the recording
+        // playing runs 228s, and their words sit on different timelines.
+        let songs = [song_of("小宇", &["蓝心羽"], 269), song_of("小宇", &["张震岳"], 227)];
+        assert_eq!(pick_lasting(&songs, "小宇", "A-Yue Chang", 228.0), Some("小宇"));
+        assert!(std::ptr::eq(
+            best_match(&songs, "小宇", "A-Yue Chang", Some(228.0), false).unwrap(),
+            &songs[1],
+        ));
+    }
+
+    #[test]
+    fn keeps_a_result_whose_length_is_unknown() {
+        let songs = [song("小宇", &["张震岳"])];
+        assert_eq!(pick_lasting(&songs, "小宇", "A-Yue Chang", 228.0), Some("小宇"));
     }
 
     #[test]
