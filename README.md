@@ -36,7 +36,8 @@ pnpm tauri build          # .app/.dmg on macOS, .msi/.exe on Windows
 Build each platform on that platform (Windows installers cannot be produced on macOS).
 
 The tray menu — the menu bar icon on macOS, the notification area icon on Windows — controls
-show/hide, expand on hover, idle bar, lyrics, Claude alerts, display, language and launch at login.
+show/hide, expand on hover, idle bar, lyrics, lyric translations, Claude alerts, display, language
+and launch at login.
 
 Bangs speaks Chinese and English, following the system language unless the Language submenu pins it
 to one (`src-tauri/src/i18n.rs`, `src/lib/i18n.ts`). WKWebView reports the app's own language rather
@@ -60,9 +61,9 @@ hardened runtime needs `src-tauri/entitlements.plist`, whose Apple Events entitl
 the Spotify panel working in a notarized build.
 
 Lyrics use a player-aware public-provider fallback chain built from QQ Music and NetEase. A result is
-accepted when it contains timed original lyrics; matched translations are shown when available. Only
-track metadata is sent, successful results are cached under the app cache directory, and the tray menu
-can turn the lookup off entirely.
+accepted when it contains timed original lyrics; matched translations are shown when available and can
+be hidden independently. Only track metadata is sent, successful results are cached under the app cache
+directory, and the tray menu can turn the lookup off entirely.
 
 The clipboard panel asks Paste for its panel with `open pasteg://panel`, which Paste answers in
 `AppDelegate.application(_:open:)`; older Paste builds only get activated instead.

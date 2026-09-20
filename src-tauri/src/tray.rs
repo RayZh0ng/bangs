@@ -66,6 +66,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             #[cfg(windows)]
             &CheckMenuItem::with_id(app, "clipboard-history", t("记录剪贴板", "Record the clipboard"), true, settings.clipboard_history, None::<&str>)?,
             &CheckMenuItem::with_id(app, "lyrics", t("显示歌词", "Show lyrics"), true, settings.lyrics_enabled, None::<&str>)?,
+            &CheckMenuItem::with_id(app, "lyrics-translation", t("显示歌词翻译", "Show lyric translations"), settings.lyrics_enabled, settings.lyrics_translation_enabled, None::<&str>)?,
             &CheckMenuItem::with_id(app, "notify-claude", t("Claude 忙完时提醒", "Alert when Claude finishes"), true, settings.notify_claude_idle, None::<&str>)?,
             &display,
             &language,
@@ -132,6 +133,11 @@ fn handle_menu(app: &AppHandle, id: &str) {
                 settings.lyrics_enabled = !settings.lyrics_enabled;
             });
             crate::lyrics::set_enabled(app, next.lyrics_enabled);
+        }
+        "lyrics-translation" => {
+            settings::update(app, |settings| {
+                settings.lyrics_translation_enabled = !settings.lyrics_translation_enabled;
+            });
         }
         "notify-claude" => {
             settings::update(app, |settings| {

@@ -16,6 +16,7 @@ export interface Settings {
   idleHandle: boolean;
   notifyClaudeIdle: boolean;
   lyricsEnabled: boolean;
+  lyricsTranslationEnabled: boolean;
   clipboardHistory: boolean;
   display: string | null;
   /** "zh" or "en"; null follows the system language. */

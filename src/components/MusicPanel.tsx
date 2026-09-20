@@ -6,6 +6,7 @@ import type { LyricLine } from "../lib/native";
 import { useNow } from "../lib/useNow";
 import { lineAt, useLyrics } from "../store/lyrics";
 import { elapsedAt, isMediaLive, useMedia } from "../store/media";
+import { useNotch } from "../store/notch";
 import { Empty } from "./Empty";
 import { KaraokeLine } from "./KaraokeLine";
 import { MusicIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon } from "./Icons";
@@ -16,6 +17,7 @@ export function MusicPanel() {
   const mediaClock = useMedia((s) => s.clock);
   const send = useMedia((s) => s.send);
   const lines = useLyrics((s) => s.lines);
+  const showTranslations = useNotch((s) => s.settings.lyricsTranslationEnabled);
   // The sweep over the current line needs a faster clock than the progress bar.
   const now = useNow(current?.playing ? (lines.length ? 80 : 250) : 1000, !!current, true);
 
@@ -53,7 +55,7 @@ export function MusicPanel() {
           {!hasLyrics && <div className="music__artist">{media.artist || media.album || " "}</div>}
         </div>
 
-        {hasLyrics && <LyricView lines={lines} elapsed={elapsed ?? 0} />}
+        {hasLyrics && <LyricView lines={lines} elapsed={elapsed ?? 0} showTranslations={showTranslations} />}
 
         {progress != null && elapsed != null && duration ? (
           <div className="progress" onClick={seek}>
@@ -90,7 +92,7 @@ export function MusicPanel() {
   );
 }
 
-/** Height of one row; rowOfLine counts original AND translation rows. */
+/** Height of one lyric row; translations add a second row when enabled. */
 const ROW = 20;
 
 interface Row {
@@ -100,14 +102,16 @@ interface Row {
   translation: boolean;
 }
 
-/** Always reserves two rows per lyric so translation cannot shift the original. */
-function rowsOf(lines: LyricLine[]): { rows: Row[]; rowOfLine: number[] } {
+/** A translated lyric occupies a stable original/translation pair. */
+function rowsOf(lines: LyricLine[], showTranslations: boolean): { rows: Row[]; rowOfLine: number[] } {
   const rows: Row[] = [];
   const rowOfLine: number[] = [];
   lines.forEach((line, index) => {
     rowOfLine[index] = rows.length;
     rows.push({ line: index, text: line.text, translation: false });
-    rows.push({ line: index, text: line.translation ?? "", translation: true });
+    if (showTranslations && line.translation?.trim()) {
+      rows.push({ line: index, text: line.translation, translation: true });
+    }
   });
   return { rows, rowOfLine };
 }
@@ -116,11 +120,11 @@ function rowsOf(lines: LyricLine[]): { rows: Row[]; rowOfLine: number[] } {
  * The lyric as a strip that scrolls, so the line being sung slides into the
  * middle instead of the two-line pair swapping its text at once.
  */
-export function LyricView({ lines, elapsed }: { lines: LyricLine[]; elapsed: number }) {
-  const { rows, rowOfLine } = useMemo(() => rowsOf(lines), [lines]);
+export function LyricView({ lines, elapsed, showTranslations }: { lines: LyricLine[]; elapsed: number; showTranslations: boolean }) {
+  const { rows, rowOfLine } = useMemo(() => rowsOf(lines, showTranslations), [lines, showTranslations]);
   const index = lineAt(lines, elapsed);
   const line = lines[index];
-  // Each lyric pair occupies two rows; keep the current original in the middle.
+  // Put the current original first; the second row is its translation or the next original.
   const rowOffset = index < 0 ? 0 : rowOfLine[index];
 
   return (
