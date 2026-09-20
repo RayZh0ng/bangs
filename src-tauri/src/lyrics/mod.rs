@@ -76,6 +76,8 @@ struct Request {
     album: String,
     duration: Option<f64>,
     player: PlayerKind,
+    /// Whether a translated line is worth extra looking; the tray decides.
+    translate: bool,
     attempt: u8,
 }
 
@@ -129,7 +131,7 @@ const TRUSTED_RANK: usize = 5;
 const ATTEMPTS: usize = 3;
 /// Bumped whenever the matching changes enough that what an older version
 /// picked is not to be trusted — a cached file may hold a cover's timeline.
-const CACHE_VERSION: u8 = 4;
+const CACHE_VERSION: u8 = 5;
 const RETRIES: u8 = 2;
 const RETRY_DELAYS: [Duration; 2] = [Duration::from_secs(30), Duration::from_secs(120)];
 
@@ -165,7 +167,8 @@ pub fn sync(app: &AppHandle, media: Option<&MediaState>) {
         },
     );
 
-    if !app.state::<SettingsState>().get().lyrics_enabled {
+    let settings = app.state::<SettingsState>().get();
+    if !settings.lyrics_enabled {
         return;
     }
     let request = Request {
@@ -175,6 +178,7 @@ pub fn sync(app: &AppHandle, media: Option<&MediaState>) {
         album: media.album.clone(),
         duration: media.duration,
         player: player_kind(media),
+        translate: settings.lyrics_translation_enabled,
         attempt: 0,
     };
     let sender = hub.requests.lock().unwrap().clone();
@@ -274,6 +278,7 @@ fn process_request(
                 &request.album,
                 request.duration,
                 request.player,
+                request.translate,
             );
             if let (Some(path), Some(fetched)) = (&path, fetched.as_ref()) {
                 let cache = CacheFile {
@@ -329,6 +334,28 @@ fn cache_name(track: &str) -> String {
     let mut hasher = DefaultHasher::new();
     track.hash(&mut hasher);
     format!("{:016x}.json", hasher.finish())
+}
+
+/// Whether any line came with a translation under it.
+fn has_translation(lines: &[LyricLine]) -> bool {
+    lines
+        .iter()
+        .any(|line| line.translation.as_deref().is_some_and(|text| !text.trim().is_empty()))
+}
+
+/// Whether a translation would say anything this lyric does not. A lyric
+/// already written in Han characters is the one the panel reads; Hangul, kana
+/// and Latin words are what a translation is for.
+fn wants_translation(lines: &[LyricLine]) -> bool {
+    let (han, letters) = lines
+        .iter()
+        .flat_map(|line| line.text.chars())
+        .filter(|character| character.is_alphabetic())
+        .fold((0usize, 0usize), |(han, letters), character| {
+            let is_han = matches!(character, '\u{3400}'..='\u{9fff}' | '\u{f900}'..='\u{faff}');
+            (han + usize::from(is_han), letters + 1)
+        });
+    letters > 0 && han * 2 < letters
 }
 
 fn acceptable(result: &FetchedLyrics) -> bool {
@@ -451,9 +478,14 @@ fn fetch(
     album: &str,
     duration: Option<f64>,
     player: PlayerKind,
+    translate: bool,
 ) -> Option<FetchedLyrics> {
     let client = client()?;
     let mut qq_cache: Option<Vec<serde_json::Value>> = None;
+    // The first source with words wins, unless a translated line was asked
+    // for and it has none: QQ carries no Chinese under a Korean lyric where
+    // NetEase does, and stopping at the first answer would never find it.
+    let mut untranslated: Option<FetchedLyrics> = None;
     for provider in provider_order(player) {
         let fetched = match provider {
             Provider::QqQrc | Provider::QqLrc => {
@@ -469,11 +501,13 @@ fn fetch(
             }
             Provider::NetEase => fetch_netease(&client, title, artist, album, duration),
         };
-        if fetched.as_ref().is_some_and(acceptable) {
-            return fetched;
+        let Some(fetched) = fetched.filter(acceptable) else { continue };
+        if !translate || has_translation(&fetched.lines) || !wants_translation(&fetched.lines) {
+            return Some(fetched);
         }
+        untranslated.get_or_insert(fetched);
     }
-    None
+    untranslated
 }
 
 /// Drops the suffixes players add to a title: "Song - Live", "Song (feat. X)".
@@ -1234,6 +1268,22 @@ mod tests {
         assert!(!has_words(&[line("此歌曲为没有填词的纯音乐，请您欣赏")]));
         assert!(!has_words(&[line("作词：K3CIM"), line("编曲：K3CIM")]));
         assert!(has_words(&[line("作词：林夕"), line("当时桌上有一杯茶")]));
+    }
+
+    #[test]
+    fn asks_for_a_translation_only_where_one_would_say_something() {
+        let line = |text: &str, translation: Option<&str>| LyricLine {
+            at: 0.0,
+            text: text.to_string(),
+            translation: translation.map(str::to_string),
+            words: Vec::new(),
+        };
+        // A Chinese lyric is the one the panel reads; nothing to add.
+        assert!(!wants_translation(&[line("当时桌上有一杯茶", None)]));
+        assert!(wants_translation(&[line("처음 본 널 기억해", None)]));
+        assert!(wants_translation(&[line("We are, we are", None)]));
+        assert!(!has_translation(&[line("Darling", Some("  "))]));
+        assert!(has_translation(&[line("Darling", Some("亲爱的"))]));
     }
 
     #[test]
