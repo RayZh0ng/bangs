@@ -49,7 +49,9 @@ if [[ $want_mac -eq 1 ]]; then
   fi
   # Asking for the credentials is the only way to know they are there; without
   # them the build still produces a signed bundle, it just is not notarized.
-  if [[ -n "$notary" ]] && ! xcrun notarytool history --keychain-profile "$notary" --limit 1 >/dev/null 2>&1; then
+  # No flags beyond the profile: notarytool has dropped options before, and a
+  # check that fails for the wrong reason skips notarization without a word.
+  if [[ -n "$notary" ]] && ! xcrun notarytool history --keychain-profile "$notary" >/dev/null 2>&1; then
     echo "钥匙串里没有 $notary 的公证凭据，这次只签名不公证（见 scripts/publish-release.md）" >&2
     notary=""
   fi
