@@ -16,6 +16,7 @@ export interface Activity {
   lyric: {
     text: string;
     translation: string | null;
+    showTranslation: boolean;
     words?: LyricWord[];
     from: number;
     to: number;
@@ -116,7 +117,7 @@ function CompactLyric({ lyric, fromEnd }: { lyric: NonNullable<Activity["lyric"]
       {leaving && (
         <span key={leaving.key} className="lyric-swap__out">
           <span className="compact__lyric">{leaving.text}</span>
-          <span className="compact__translation">{leaving.translation ?? ""}</span>
+          {lyric.showTranslation && <span className="compact__translation">{leaving.translation ?? ""}</span>}
         </span>
       )}
       <span className="lyric-swap__pair" key={`${lyric.from}:${lyric.revision}`}>
@@ -128,7 +129,7 @@ function CompactLyric({ lyric, fromEnd }: { lyric: NonNullable<Activity["lyric"]
           to={lyric.to}
           elapsed={lyric.elapsed}
         />
-        <span className="compact__translation">{lyric.translation ?? ""}</span>
+        {lyric.showTranslation && <span className="compact__translation">{lyric.translation ?? ""}</span>}
       </span>
     </span>
   );

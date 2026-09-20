@@ -19,7 +19,6 @@ export const WING = 76;
 export const LYRIC_WING = 190;
 /** Without a cutout in the way, the lyric gets the whole strip. */
 const LYRIC_STRIP = 300;
-/** A lyric needs a little more room than a bare strip gives it. */
 /** Height of the compact original/translation pair. */
 const LYRIC_HEIGHT = 40;
 const HANDLE: Size = { width: 130, height: 7 };
@@ -64,6 +63,7 @@ export function notchSize(
   settings: Settings,
   hasActivity: boolean,
   lyric: boolean,
+  lyricTranslation: boolean,
 ): Size {
   const base = baseNotch(screen);
   switch (mode) {
@@ -77,10 +77,10 @@ export function notchSize(
       // than float a black pill over it. A cutout screen never reports this.
       if (screen.fullscreen) return HANDLE;
       const gap = centerGap(screen);
-      // A lyric needs two readable rows, so both hardware and virtual notches
-      // grow to the same minimum height while the lyric is visible.
+      // Translated lyrics need two readable rows. Original-only lyrics fit the
+      // regular compact height.
       if (lyric) {
-        const height = Math.max(base.height, LYRIC_HEIGHT);
+        const height = lyricTranslation ? Math.max(base.height, LYRIC_HEIGHT) : base.height;
         return { width: gap + lyricArtWing(screen) + lyricWidth(screen), height };
       }
       if (hasActivity) return { width: Math.max(base.width, gap + WING * 2), height: base.height };

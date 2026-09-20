@@ -96,6 +96,7 @@ export const useNotch = create<NotchStore>((set, get) => {
       idleHandle: false,
       notifyClaudeIdle: true,
       lyricsEnabled: true,
+      lyricsTranslationEnabled: true,
       clipboardHistory: true,
       display: null,
       language: null,

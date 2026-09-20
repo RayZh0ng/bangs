@@ -40,11 +40,13 @@ export function Notch() {
   const elapsed = media?.playing ? elapsedAt(media, now, clock) : null;
   const lyricIndex = live?.playing && lyricsTimed && elapsed != null ? lineAt(lyricLines, elapsed) : -1;
   const lyricLine = lyricLines[lyricIndex];
+  const showTranslation = settings.lyricsTranslationEnabled && Boolean(lyricLine?.translation?.trim());
   const lyric =
     lyricLine && elapsed != null
       ? {
           text: lyricLine.text,
-          translation: lyricLine.translation,
+          translation: showTranslation ? lyricLine.translation : null,
+          showTranslation,
           words: lyricLine.words,
           from: lyricLine.at,
           to: lyricLines[lyricIndex + 1]?.at ?? lyricLine.at + 6,
@@ -70,7 +72,14 @@ export function Notch() {
     activity.shelfCount > 0;
 
   const base = baseNotch(screen);
-  const size = notchSize(mode, screen, settings, hasActivity, mode === "compact" && !!lyric);
+  const size = notchSize(
+    mode,
+    screen,
+    settings,
+    hasActivity,
+    mode === "compact" && !!lyric,
+    mode === "compact" && !!lyric?.showTranslation,
+  );
   const hit = hitRect(size);
   const { ear, bottom } = cornerRadii(mode, size);
 

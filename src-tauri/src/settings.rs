@@ -17,6 +17,8 @@ pub struct Settings {
     pub notify_claude_idle: bool,
     /// Look up lyrics for the current track (sends title and artist to QQ Music).
     pub lyrics_enabled: bool,
+    /// Show matched lyric translations when the provider returns them.
+    pub lyrics_translation_enabled: bool,
     /// Windows only: record the clipboard into the panel's history.
     pub clipboard_history: bool,
     /// `platform::display_label` of the monitor to attach to; `None` follows
@@ -37,6 +39,7 @@ impl Default for Settings {
             idle_handle: true,
             notify_claude_idle: true,
             lyrics_enabled: true,
+            lyrics_translation_enabled: true,
             clipboard_history: true,
             display: None,
             language: None,
@@ -90,4 +93,15 @@ pub fn update(app: &AppHandle, change: impl FnOnce(&mut Settings)) -> (Settings,
     }
     let _ = app.emit("settings://changed", &next);
     (previous, next)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Settings;
+
+    #[test]
+    fn old_settings_enable_lyric_translations_by_default() {
+        let settings: Settings = serde_json::from_str(r#"{"lyricsEnabled":true}"#).unwrap();
+        assert!(settings.lyrics_translation_enabled);
+    }
 }
