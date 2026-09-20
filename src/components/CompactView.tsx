@@ -11,7 +11,7 @@ export interface Activity {
   attention: number;
   media: MediaState | null;
   /** The line being sung right now, when the player has lyrics. */
-  lyric: { text: string; words?: LyricWord[]; from: number; to: number; elapsed: number } | null;
+  lyric: { text: string; translation: string | null; words?: LyricWord[]; from: number; to: number; elapsed: number; revision: number } | null;
   shelfCount: number;
 }
 
@@ -50,7 +50,7 @@ export function CompactView({ activity, screen }: { activity: Activity; screen: 
         {attention > 0 ? (
           <span className="compact__attention">{attention > 1 ? t(`${attention} 个等你`, `${attention} waiting`) : t("等你回复", "Waiting for you")}</span>
         ) : lyric ? (
-          <CompactLyric lyric={lyric} fromEnd={screen.hasNotch} />
+          <CompactLyric key={lyric.revision} lyric={lyric} fromEnd={screen.hasNotch} />
         ) : media ? (
           media.playing ? <Equalizer /> : <span className="compact__glyph"><PauseIcon /></span>
         ) : (
@@ -66,26 +66,40 @@ export function CompactView({ activity, screen }: { activity: Activity; screen: 
  * moment the next one starts: it slides up and out from under it.
  */
 function CompactLyric({ lyric, fromEnd }: { lyric: NonNullable<Activity["lyric"]>; fromEnd: boolean }) {
-  const [leaving, setLeaving] = useState<{ key: number; text: string } | null>(null);
+  const [leaving, setLeaving] = useState<{ key: number; text: string; translation: string | null } | null>(null);
   const shown = useRef(lyric);
+  const timer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
 
   useEffect(() => {
     const previous = shown.current;
     shown.current = lyric;
     if (previous.from === lyric.from) return;
-    setLeaving({ key: previous.from, text: previous.text });
-    const timer = window.setTimeout(() => setLeaving(null), LEAVE_MS);
-    return () => window.clearTimeout(timer);
+    setLeaving({ key: previous.from, text: previous.text, translation: previous.translation });
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setLeaving(null), LEAVE_MS);
   }, [lyric]);
 
   return (
     <span className={`lyric-swap${fromEnd ? " lyric-swap--from-end" : ""}`}>
       {leaving && (
         <span key={leaving.key} className="lyric-swap__out">
-          {leaving.text}
+          <span className="compact__lyric">{leaving.text}</span>
+          <span className="compact__translation">{leaving.translation ?? ""}</span>
         </span>
       )}
-      <KaraokeLine key={lyric.from} className="compact__lyric" {...lyric} />
+      <span className="lyric-swap__pair" key={`${lyric.from}:${lyric.revision}`}>
+        <KaraokeLine
+          className="compact__lyric"
+          text={lyric.text}
+          words={lyric.words}
+          from={lyric.from}
+          to={lyric.to}
+          elapsed={lyric.elapsed}
+        />
+        <span className="compact__translation">{lyric.translation ?? ""}</span>
+      </span>
     </span>
   );
 }

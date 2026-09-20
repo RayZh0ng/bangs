@@ -20,25 +20,29 @@ export function Notch() {
   const hovering = useNotch((s) => s.hovering);
   const media = useMedia((s) => s.media);
   const lastActiveAt = useMedia((s) => s.lastActiveAt);
+  const clock = useMedia((s) => s.clock);
   const shelfCount = useShelf((s) => s.items.length);
   const waiting = useDev((s) => waitingSessions(s.sessions).length);
   const lyricLines = useLyrics((s) => s.lines);
+  const lyricsTimed = useLyrics((s) => s.timed);
 
   // The lyric sweep needs a fast clock; everything else here is slow.
-  const now = useNow(media?.playing && lyricLines.length ? 80 : 5_000);
+  const now = useNow(media?.playing && lyricLines.length ? 80 : 5_000, true, true);
 
   const live = isMediaLive(media, lastActiveAt, now) ? media : null;
-  const elapsed = media?.playing ? elapsedAt(media, now) : null;
-  const lyricIndex = live?.playing && elapsed != null ? lineAt(lyricLines, elapsed) : -1;
+  const elapsed = media?.playing ? elapsedAt(media, now, clock) : null;
+  const lyricIndex = live?.playing && lyricsTimed && elapsed != null ? lineAt(lyricLines, elapsed) : -1;
   const lyricLine = lyricLines[lyricIndex];
   const lyric =
     lyricLine && elapsed != null
       ? {
           text: lyricLine.text,
+          translation: lyricLine.translation,
           words: lyricLine.words,
           from: lyricLine.at,
           to: lyricLines[lyricIndex + 1]?.at ?? lyricLine.at + 6,
           elapsed,
+          revision: clock.revision,
         }
       : null;
 

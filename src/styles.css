@@ -295,7 +295,29 @@ button:disabled,
   max-width: 100%;
   color: rgba(255, 255, 255, 0.95);
   font-size: 12px;
+  line-height: 18px;
+}
+
+.lyric-swap__pair {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
   animation: lyric-in 0.42s var(--ease-out);
+}
+
+.compact__translation {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 10px;
+  line-height: 16px;
+  min-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Holds the outgoing line over the incoming one while it slides away. It
@@ -323,13 +345,20 @@ button:disabled,
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: inherit;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 0;
+  justify-content: center;
   color: rgba(255, 255, 255, 0.95);
   font-size: 12px;
   white-space: nowrap;
   animation: lyric-out 0.42s var(--ease-out) forwards;
   pointer-events: none;
+}
+
+.lyric-swap--from-end .lyric-swap__pair,
+.lyric-swap--from-end .lyric-swap__out {
+  align-items: flex-end;
 }
 
 @keyframes lyric-out {
@@ -749,11 +778,11 @@ button:disabled,
 }
 
 .lyrics {
-  /* Three rows tall, scrolled one row at a time; see LyricView. */
-  height: 60px;
+  /* Two rows tall: the current original and its translation. */
+  height: 40px;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent);
-  mask-image: linear-gradient(180deg, transparent, #000 32%, #000 68%, transparent);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 86%, transparent 100%);
 }
 
 .lyrics__scroll {
@@ -809,6 +838,13 @@ button:disabled,
   color: var(--text);
   font-size: 13.5px;
   font-weight: 600;
+  opacity: 1;
+}
+
+.lyrics__line--sub.is-current {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11px;
+  font-weight: 500;
   opacity: 1;
 }
 

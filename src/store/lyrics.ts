@@ -8,9 +8,10 @@ interface LyricsStore extends Lyrics {
 
 export const useLyrics = create<LyricsStore>((set) => ({
   track: "",
+  timed: false,
   lines: [],
   update(next) {
-    set({ track: next.track, lines: next.lines });
+    set({ track: next.track, timed: next.timed, lines: next.lines });
   },
 }));
 
@@ -18,7 +19,7 @@ export const useLyrics = create<LyricsStore>((set) => ({
 export function lineAt(lines: LyricLine[], elapsed: number): number {
   let index = -1;
   for (let i = 0; i < lines.length; i += 1) {
-    if (lines[i].at > elapsed + 0.15) break;
+    if (lines[i].at > elapsed + 0.05) break;
     index = i;
   }
   return index;

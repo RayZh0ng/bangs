@@ -52,7 +52,10 @@ pub fn start(app: AppHandle) {
             }
 
             let next = ask(NOW_PLAYING).and_then(|line| parse(&line, &mut artwork));
-            if changed(published.as_ref(), next.as_ref()) {
+            // Retain fresh samples for the merge even when the UI would have
+            // extrapolated the same position. An older system sample must
+            // not win just because we suppressed a Spotify update.
+            if next.is_some() || published.is_some() {
                 publish(&app, next.clone());
                 published = next;
             }
@@ -75,7 +78,9 @@ pub fn command(command: MediaCommand) -> Result<(), String> {
             format!("tell application \"Spotify\" to set player position to {position}")
         }
     };
-    ask(&script).map(|_| ()).ok_or_else(|| t("Spotify 没有响应", "Spotify did not answer").to_string())
+    ask(&script)
+        .map(|_| ())
+        .ok_or_else(|| t("Spotify 没有响应", "Spotify did not answer").to_string())
 }
 
 fn publish(app: &AppHandle, next: Option<MediaState>) {
@@ -84,7 +89,11 @@ fn publish(app: &AppHandle, next: Option<MediaState>) {
 }
 
 fn ask(script: &str) -> Option<String> {
-    let output = Command::new("/usr/bin/osascript").arg("-e").arg(script).output().ok()?;
+    let output = Command::new("/usr/bin/osascript")
+        .arg("-e")
+        .arg(script)
+        .output()
+        .ok()?;
     if !output.status.success() {
         // A refused Apple Event (no Automation permission yet) lands here.
         let message = String::from_utf8_lossy(&output.stderr);
@@ -107,7 +116,9 @@ fn parse(line: &str, artwork: &mut Option<(String, String)>) -> Option<MediaStat
     let artist = fields.next().unwrap_or_default().to_string();
     let album = fields.next().unwrap_or_default().to_string();
     // Spotify reports the length in milliseconds and the position in seconds.
-    let duration = number(fields.next()).map(|ms| ms / 1000.0).filter(|length| *length > 0.0);
+    let duration = number(fields.next())
+        .map(|ms| ms / 1000.0)
+        .filter(|length| *length > 0.0);
     let elapsed = number(fields.next());
     let art = fields.next().unwrap_or_default();
 
@@ -148,40 +159,17 @@ fn fetch_artwork(url: &str, cache: &mut Option<(String, String)>) -> Option<Stri
     if bytes.is_empty() || bytes.len() > MAX_ARTWORK {
         return None;
     }
-    let mime = if bytes.starts_with(&[0x89, b'P']) { "image/png" } else { "image/jpeg" };
+    let mime = if bytes.starts_with(&[0x89, b'P']) {
+        "image/png"
+    } else {
+        "image/jpeg"
+    };
     let data = format!(
         "data:{mime};base64,{}",
         base64::engine::general_purpose::STANDARD.encode(&bytes)
     );
     *cache = Some((url.to_string(), data.clone()));
     Some(data)
-}
-
-fn changed(published: Option<&MediaState>, next: Option<&MediaState>) -> bool {
-    match (published, next) {
-        (None, None) => false,
-        (Some(published), Some(next)) => {
-            published.title != next.title
-                || published.artist != next.artist
-                || published.playing != next.playing
-                || published.duration != next.duration
-                || published.artwork != next.artwork
-                || drifted(published, next)
-        }
-        _ => true,
-    }
-}
-
-/// The webview runs the clock itself, so a sample that lands where it already
-/// expects is not worth sending — and it carries the artwork with it.
-fn drifted(published: &MediaState, next: &MediaState) -> bool {
-    let expected = published.elapsed.unwrap_or_default()
-        + if published.playing {
-            (next.elapsed_at - published.elapsed_at) / 1000.0
-        } else {
-            0.0
-        };
-    (next.elapsed.unwrap_or_default() - expected).abs() > 1.5
 }
 
 fn now_ms() -> f64 {

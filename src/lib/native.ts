@@ -67,6 +67,8 @@ export interface LyricLine {
 export interface Lyrics {
   /** The track these lines belong to. */
   track: string;
+  /** True when the accepted result has timed lyrics. */
+  timed: boolean;
   lines: LyricLine[];
 }
 

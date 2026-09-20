@@ -13,10 +13,11 @@ import { MusicIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon } from "./Icons"
 export function MusicPanel() {
   const current = useMedia((s) => s.media);
   const lastActiveAt = useMedia((s) => s.lastActiveAt);
+  const mediaClock = useMedia((s) => s.clock);
   const send = useMedia((s) => s.send);
   const lines = useLyrics((s) => s.lines);
   // The sweep over the current line needs a faster clock than the progress bar.
-  const now = useNow(current?.playing ? (lines.length ? 80 : 250) : 1000, !!current);
+  const now = useNow(current?.playing ? (lines.length ? 80 : 250) : 1000, !!current, true);
 
   // The same rule the compact strip uses, so the two never disagree about
   // whether a long-paused track still counts as playing.
@@ -27,7 +28,7 @@ export function MusicPanel() {
         hint={t("在任意播放器里开始播放，就会显示在这里", "Start something in any player and it shows up here")} />;
   }
 
-  const elapsed = elapsedAt(media, now);
+  const elapsed = elapsedAt(media, now, mediaClock);
   const duration = media.duration;
   const progress = duration && elapsed != null ? elapsed / duration : null;
   const hasLyrics = lines.length > 0;
@@ -89,7 +90,7 @@ export function MusicPanel() {
   );
 }
 
-/** Height of one row, which is also the distance the lyric scrolls by. */
+/** Height of one row; rowOfLine counts original AND translation rows. */
 const ROW = 20;
 
 interface Row {
@@ -99,41 +100,40 @@ interface Row {
   translation: boolean;
 }
 
-/** One row per line, plus one for its translation, so an offset is a row count. */
+/** Always reserves two rows per lyric so translation cannot shift the original. */
 function rowsOf(lines: LyricLine[]): { rows: Row[]; rowOfLine: number[] } {
   const rows: Row[] = [];
   const rowOfLine: number[] = [];
   lines.forEach((line, index) => {
     rowOfLine[index] = rows.length;
     rows.push({ line: index, text: line.text, translation: false });
-    if (line.translation) rows.push({ line: index, text: line.translation, translation: true });
+    rows.push({ line: index, text: line.translation ?? "", translation: true });
   });
   return { rows, rowOfLine };
 }
 
 /**
  * The lyric as a strip that scrolls, so the line being sung slides into the
- * middle instead of the three lines swapping their text at once.
+ * middle instead of the two-line pair swapping its text at once.
  */
-function LyricView({ lines, elapsed }: { lines: LyricLine[]; elapsed: number }) {
+export function LyricView({ lines, elapsed }: { lines: LyricLine[]; elapsed: number }) {
   const { rows, rowOfLine } = useMemo(() => rowsOf(lines), [lines]);
   const index = lineAt(lines, elapsed);
   const line = lines[index];
-  // The line being sung sits in the middle row, so the offset is one row less
-  // than its own. Before the first line the strip waits with an empty row.
-  const offset = (index < 0 ? 0 : rowOfLine[index]) - 1;
+  // Each lyric pair occupies two rows; keep the current original in the middle.
+  const rowOffset = index < 0 ? 0 : rowOfLine[index];
 
   return (
     <div className="lyrics">
-      <div className="lyrics__scroll" style={{ transform: `translateY(${-offset * ROW}px)` }}>
+      <div className="lyrics__scroll" style={{ transform: `translateY(${-rowOffset * ROW}px)` }}>
         {rows.map((row, position) => {
-          const current = row.line === index && !row.translation;
+          const current = row.line === index;
           return (
             <div
               key={position}
               className={`lyrics__line${current ? " is-current" : ""}${row.translation ? " lyrics__line--sub" : ""}`}
             >
-              {current && line ? (
+              {current && line && !row.translation ? (
                 <KaraokeLine
                   text={line.text}
                   words={line.words}
@@ -141,9 +141,7 @@ function LyricView({ lines, elapsed }: { lines: LyricLine[]; elapsed: number }) 
                   to={lines[index + 1]?.at ?? line.at + 6}
                   elapsed={elapsed}
                 />
-              ) : (
-                row.text
-              )}
+              ) : row.text}
             </div>
           );
         })}
