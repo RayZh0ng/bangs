@@ -43,7 +43,7 @@ echo "== Bangs v$version =="
 if [[ $want_mac -eq 1 ]]; then
   echo "-- macOS --"
   if [[ -n "$identity" ]]; then
-    echo "签名身份 $identity（团队 $team）"
+    echo "签名身份 ${identity}（团队 ${team}）"
   else
     echo "钥匙串里没有 $team 的 Developer ID 证书，打出来的包是未签名的" >&2
   fi
@@ -101,11 +101,11 @@ if [[ $want_windows -eq 1 ]]; then
     iconv -f utf-8 -t utf-8 -c | tail -20
   built=${PIPESTATUS[0]}
   set -e
-  [[ $built -eq 0 ]] || { echo "Windows 构建失败（退出码 $built），日志在 $host 的 D:\\Develop\\bangs-src\\build.log" >&2; exit 1; }
+  [[ $built -eq 0 ]] || { echo "Windows 构建失败（退出码 ${built}），日志在 $host 的 D:\\Develop\\bangs-src\\build.log" >&2; exit 1; }
 
   for name in "Bangs_${version}_x64-setup.exe" "Bangs_${version}_x64_en-US.msi"; do
     scp -q "$host:D:/Develop/bangs-src/artifacts/$name" "$out/$name" ||
-      { echo "缺少 $name（Windows 端没打出来）" >&2; exit 1; }
+      { echo "缺少 ${name}（Windows 端没打出来）" >&2; exit 1; }
     echo "取回 $name"
   done
 fi
