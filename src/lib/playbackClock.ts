@@ -1,5 +1,11 @@
 import type { MediaState } from "./native";
 
+/**
+ * How far the position may step back before it counts as going somewhere
+ * rather than catching up. Dragging the progress bar moves it further.
+ */
+const CATCH_UP_S = 1;
+
 export interface PlaybackClock {
   anchorAt: number;
   anchorElapsed: number | null;
@@ -46,10 +52,17 @@ export function reconcileClock(
   const sampled = valid && !stale
     ? next.elapsed! + (next.playing ? Math.max(0, wallNow - next.elapsedAt) / 1000 : 0)
     : changedTrack ? null : predicted;
-  const jumped = predicted != null && sampled != null && Math.abs(sampled - predicted) > 0.75;
+  // A pause reports where the player was when it last looked, a fraction of a
+  // second before the sound stopped. The clock on screen has already run past
+  // that, and snapping back to it moves the lyric a line and then back again.
+  // A step longer than CATCH_UP_S is somewhere the player actually went.
+  const behind = predicted != null && sampled != null && sampled < predicted;
+  const anchorElapsed =
+    behind && predicted! - sampled! <= CATCH_UP_S ? predicted : sampled;
+  const jumped = predicted != null && anchorElapsed != null && Math.abs(anchorElapsed - predicted) > 0.75;
   return {
     anchorAt: now,
-    anchorElapsed: sampled,
+    anchorElapsed,
     revision: clock.revision + Number(changedTrack || changedPlayback || jumped),
     sampleAt: valid && !stale ? next.elapsedAt : changedTrack ? undefined : clock.sampleAt,
     sampleElapsed: valid && !stale ? next.elapsed : changedTrack ? undefined : clock.sampleElapsed,

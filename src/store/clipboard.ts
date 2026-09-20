@@ -54,8 +54,9 @@ export const useClipboard = create<ClipboardStore>((set, get) => ({
   },
 
   async use(item) {
-    // Paste owns the richer pasteboard types, so let it handle those.
-    if (item.kind !== "text" && get().source === "paste") {
+    // A picture is copied like anything else; files are promises only Paste
+    // can keep, so those are handed over to its own panel.
+    if (item.kind === "files" && get().source === "paste") {
       await get().showPanel();
       return;
     }

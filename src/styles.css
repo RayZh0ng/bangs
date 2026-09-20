@@ -73,6 +73,12 @@ img {
   cursor: pointer;
 }
 
+/* The one place in the notch that takes the keyboard; see TodoPanel.tsx. */
+.todo__new,
+.todo__input {
+  cursor: text;
+}
+
 .tile {
   cursor: grab;
 }
@@ -1260,6 +1266,114 @@ button:disabled,
   color: var(--text);
 }
 
+/* ---------- To-do ---------- */
+
+.todo {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  height: 100%;
+}
+
+.todo__new {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--fill);
+  color: var(--faint);
+  transition: background 0.15s, box-shadow 0.15s, color 0.15s;
+}
+
+.todo__new[data-hover] {
+  background: var(--fill-strong);
+}
+
+.todo__new.is-typing {
+  background: var(--fill-strong);
+  box-shadow: inset 0 0 0 1px var(--focus-soft);
+  color: var(--focus);
+}
+
+.todo__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  caret-color: var(--focus);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.todo__input::placeholder {
+  color: var(--faint);
+}
+
+.todo__box {
+  display: grid;
+  width: 15px;
+  height: 15px;
+  flex: none;
+  place-items: center;
+  border: 1.5px solid var(--faint);
+  border-radius: 50%;
+  color: #000;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.todo__row[data-hover] .todo__box {
+  border-color: var(--muted);
+}
+
+/* Ticked off: the line fills in, comes apart and blows off the list. Nothing
+   is kept, so the row folds up behind the dust. */
+.todo__row.is-dust {
+  pointer-events: none;
+  animation: dust-row 0.26s var(--ease-out) 0.64s forwards;
+}
+
+.todo__row.is-dust .todo__box {
+  border-color: var(--focus);
+  background: var(--focus);
+}
+
+.todo__dust {
+  display: inline-block;
+  white-space: pre;
+  animation: dust 0.5s var(--ease-out) var(--delay) forwards;
+}
+
+@keyframes dust {
+  to {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translate(var(--drift), var(--lift)) rotate(var(--spin)) scale(0.72);
+  }
+}
+
+@keyframes dust-row {
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+.todo__blank {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  color: var(--faint);
+  font-size: 11.5px;
+}
+
 /* ---------- Drop ---------- */
 
 .drop {
@@ -1308,4 +1422,51 @@ button:disabled,
     transition: none;
     animation: none;
   }
+}
+
+.row__icon--glyph {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+/* A plugin's progress, in the space the timestamp would take. */
+.meter {
+  width: 54px;
+  height: 4px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--fill-strong);
+  overflow: hidden;
+}
+
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--focus);
+  transition: width 0.3s var(--ease-out);
+}
+
+/* A docked row's title beside the notch, with its progress under it. */
+.compact__docked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 0;
+}
+
+.compact__docked-title {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meter--compact {
+  width: 44px;
+  height: 3px;
 }

@@ -33,8 +33,10 @@ impl Default for Settings {
         Self {
             visible: true,
             expand_on_hover: true,
-            // A black pill over browser tabs is intrusive on Windows.
-            idle_handle: cfg!(windows),
+            // A resting black pill is intrusive wherever it is drawn rather
+            // than hiding in a cutout, which is every screen without a notch —
+            // the layout ignores this on the screens that have one.
+            idle_handle: true,
             notify_claude_idle: true,
             lyrics_enabled: true,
             lyrics_translation_enabled: true,

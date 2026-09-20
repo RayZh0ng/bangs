@@ -1,3 +1,4 @@
+mod activities;
 mod clipboard;
 mod dev;
 mod geometry;
@@ -7,18 +8,21 @@ mod media;
 mod platform;
 mod settings;
 mod shelf;
+mod todos;
 mod tray;
 mod update;
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
+use activities::{Activity, ActivityHub};
 use dev::{DevHub, DevState};
 use geometry::{Geometry, ScreenInfo};
 use lyrics::{Lyrics, LyricsHub};
 use media::{MediaCommand, MediaHub, MediaState};
 use clipboard::{ClipboardHub, ClipboardState};
 use settings::{Settings, SettingsState};
+use todos::{Todo, TodoHub};
 use update::UpdateState;
 
 pub const MAIN_WINDOW: &str = "main";
@@ -32,6 +36,9 @@ struct Bootstrap {
     lyrics: Lyrics,
     dev: DevState,
     clipboard: ClipboardState,
+    /// Rows other programs asked the notch to show; see docs/plugins.md.
+    activities: Vec<Activity>,
+    todos: Vec<Todo>,
     drag_icon: Option<String>,
     /// "zh" or "en", resolved from the setting or the system.
     language: &'static str,
@@ -48,6 +55,8 @@ fn bootstrap(app: AppHandle) -> Bootstrap {
         lyrics: app.state::<LyricsHub>().current(),
         dev: app.state::<DevHub>().current(),
         clipboard: app.state::<ClipboardHub>().current(),
+        activities: app.state::<ActivityHub>().current(),
+        todos: app.state::<TodoHub>().current(),
         drag_icon: shelf::drag_icon_path(&app),
         language: i18n::code(),
     }
@@ -70,6 +79,13 @@ fn set_hit_rect(app: AppHandle, width: f64, height: f64) {
 #[tauri::command]
 fn set_cursor(app: AppHandle, shape: String) {
     platform::set_cursor(&app, &shape);
+}
+
+/// Lets the webview type: the notch keeps its hands off the keyboard except
+/// while a field in it is focused.
+#[tauri::command]
+fn capture_keyboard(app: AppHandle, capture: bool) {
+    platform::set_keyboard_capture(&app, capture);
 }
 
 #[tauri::command]
@@ -110,6 +126,8 @@ pub fn run() {
             app.manage(LyricsHub::default());
             app.manage(DevHub::default());
             app.manage(ClipboardHub::default());
+            app.manage(ActivityHub::default());
+            app.manage(TodoHub::default());
             app.manage(UpdateState::default());
 
             platform::prepare_window(&handle)?;
@@ -120,6 +138,8 @@ pub fn run() {
             lyrics::start(handle.clone());
             dev::start(handle.clone());
             clipboard::start(handle.clone());
+            activities::start(handle.clone());
+            todos::start(handle.clone());
             tray::create(&handle)?;
             update::start(handle.clone());
             Ok(())
@@ -129,14 +149,18 @@ pub fn run() {
             notch_ready,
             set_hit_rect,
             set_cursor,
+            capture_keyboard,
             media_command,
             lyrics::lyrics_refresh,
             dev::open_project,
+            activities::activity_open,
             clipboard::clipboard_use,
             clipboard::clipboard_open,
             clipboard::clipboard_clear,
             clipboard::clipboard_more,
             clipboard::clipboard_install,
+            todos::todo_add,
+            todos::todo_remove,
             shelf::shelf_inspect,
             shelf::open_file,
             shelf::reveal_file,

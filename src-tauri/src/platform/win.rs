@@ -1,16 +1,23 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 
 use tauri::{AppHandle, Manager, Monitor};
 use windows::Win32::Foundation::POINT;
-use windows::Win32::Globalization::GetUserDefaultLocaleName;
+use windows::Win32::Globalization::{
+    GetUserDefaultLocaleName, LCMapStringEx, LCMAP_SIMPLIFIED_CHINESE, LOCALE_NAME_SYSTEM_DEFAULT,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, VIRTUAL_KEY, VK_LBUTTON, VK_RBUTTON,
 };
 use windows::Win32::UI::Shell::{
     SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
 };
+use windows::Win32::Foundation::{HWND, LPARAM};
 use windows::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
-use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetCursorPos, GetForegroundWindow, GetWindowLongPtrW, SetForegroundWindow, SetWindowLongPtrW,
+    GWL_EXSTYLE, WS_EX_NOACTIVATE,
+};
 
 use super::NotchMetrics;
 use crate::settings::SettingsState;
@@ -50,6 +57,34 @@ pub fn set_hit_region(app: &AppHandle, width: f64, height: f64, scale: f64) {
     }
 }
 
+/// Folds traditional characters to simplified ones, so a title that reads
+/// 當時的月亮 in one catalogue can be compared with 当时的月亮 in another.
+/// The mapping is the system's; text with nothing to fold comes back as it was.
+pub fn to_simplified(text: &str) -> String {
+    let source: Vec<u16> = text.encode_utf16().collect();
+    if source.is_empty() {
+        return String::new();
+    }
+    // The mapping is character for character, but a surrogate pair may fold to
+    // a single unit, never to more, so the source length is room enough.
+    let mut folded = vec![0u16; source.len()];
+    let written = unsafe {
+        LCMapStringEx(
+            LOCALE_NAME_SYSTEM_DEFAULT,
+            LCMAP_SIMPLIFIED_CHINESE,
+            &source,
+            Some(&mut folded),
+            None,
+            None,
+            LPARAM(0),
+        )
+    };
+    if written <= 0 {
+        return text.to_string();
+    }
+    String::from_utf16_lossy(&folded[..written as usize])
+}
+
 /// The language the system prefers, as a tag like "zh-CN" or "en-US".
 pub fn system_language() -> String {
     let mut buffer = [0u16; 85];
@@ -63,6 +98,40 @@ pub fn system_language() -> String {
 
 /// WebView2 gets the mouse moves, so the stylesheet's own cursor applies.
 pub fn set_cursor(_app: &AppHandle, _shape: &str) {}
+
+/// The window under the pointer before the notch took the keyboard, so typing
+/// in the to-do field can hand focus straight back to it.
+static PREVIOUS_FOREGROUND: AtomicIsize = AtomicIsize::new(0);
+
+/// Takes keyboard input, or hands it back. `WS_EX_NOACTIVATE` is what keeps a
+/// click on the notch from pulling focus out of whatever is in front, so it
+/// only comes off while a field here is focused.
+pub fn set_keyboard_capture(app: &AppHandle, capture: bool) {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW) else { return };
+    let Ok(handle) = window.hwnd() else { return };
+
+    unsafe {
+        let style = GetWindowLongPtrW(handle, GWL_EXSTYLE);
+        let no_activate = WS_EX_NOACTIVATE.0 as isize;
+        if capture {
+            // Whatever was in front, unless it is already the notch: handing
+            // focus back to ourselves would strand the keyboard here.
+            let foreground = GetForegroundWindow();
+            if foreground != handle {
+                PREVIOUS_FOREGROUND.store(foreground.0 as isize, Ordering::Relaxed);
+            }
+            SetWindowLongPtrW(handle, GWL_EXSTYLE, style & !no_activate);
+            let _ = SetForegroundWindow(handle);
+            let _ = SetFocus(Some(handle));
+        } else {
+            SetWindowLongPtrW(handle, GWL_EXSTYLE, style | no_activate);
+            let previous = PREVIOUS_FOREGROUND.swap(0, Ordering::Relaxed);
+            if previous != 0 {
+                let _ = SetForegroundWindow(HWND(previous as *mut _));
+            }
+        }
+    }
+}
 
 pub fn set_window_visible(app: &AppHandle, visible: bool) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
@@ -110,6 +179,12 @@ pub fn display_label(monitor: &Monitor) -> Option<String> {
 
 pub fn notch_metrics(_monitor: &Monitor) -> NotchMetrics {
     NotchMetrics::default()
+}
+
+/// Windows answers the question outright (see `sync_fullscreen_visibility`),
+/// so the notch never has to measure windows itself.
+pub fn fullscreen_over(_rect: (f64, f64, f64, f64)) -> bool {
+    false
 }
 
 /// A topmost window would otherwise sit on top of full-screen video, games and

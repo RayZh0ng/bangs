@@ -10,6 +10,8 @@ import { events, native, type DevState } from "./lib/native";
 import { useDev } from "./store/dev";
 import { useLyrics } from "./store/lyrics";
 import { useMedia } from "./store/media";
+import { useActivities } from "./store/activities";
+import { useTodos } from "./store/todos";
 import { useClipboard } from "./store/clipboard";
 import { useNotch, type Section } from "./store/notch";
 import { useShelf, type AddResult } from "./store/shelf";
@@ -37,6 +39,8 @@ export default function App() {
       events.lyrics((lyrics) => useLyrics.getState().update(lyrics)),
       events.dev(handleDev),
       events.clipboard((clipboard) => useClipboard.getState().update(clipboard)),
+      events.activities((items) => useActivities.getState().update(items)),
+      events.todos((todos) => useTodos.getState().update(todos)),
       getCurrentWebview().onDragDropEvent((event) => void handleDragDrop(event.payload)),
       // Windows catches its own drops; see src-tauri/src/platform/win_drop.rs.
       events.dragEnter((paths) => {
@@ -56,6 +60,8 @@ export default function App() {
         useLyrics.getState().update(boot.lyrics);
         useDev.getState().update(boot.dev);
         useClipboard.getState().update(boot.clipboard);
+        useActivities.getState().update(boot.activities);
+        useTodos.getState().update(boot.todos);
         await useShelf.getState().refresh();
         useNotch.getState().init(boot);
         // Not requestAnimationFrame: hidden webviews never run frame callbacks.

@@ -9,6 +9,10 @@ use std::thread;
 use std::time::Duration;
 
 use base64::Engine;
+use objc2::rc::Retained;
+use objc2::AllocAnyThread;
+use objc2_app_kit::{NSImage, NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeTIFF};
+use objc2_foundation::{NSArray, NSData};
 use rusqlite::{Connection, OpenFlags};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -21,6 +25,9 @@ const PREVIEW_CHARS: usize = 180;
 /// Core Data stores dates as seconds since 2001-01-01.
 const CORE_DATA_EPOCH: f64 = 978_307_200.0;
 const PASTE_BUNDLE_ID: &str = "gxlself.paste-tool";
+/// Paste's own numbering for what an entry holds.
+const KIND_IMAGE: i64 = 1;
+const KIND_FILES: i64 = 2;
 const DOWNLOAD_PAGE: &str = "https://paste.gxlself.com";
 
 fn store_path() -> Option<PathBuf> {
@@ -154,19 +161,61 @@ pub fn refresh(app: &AppHandle) {
     }
 }
 
-/// Puts a history entry back on the clipboard. Images and files are left to
-/// Paste itself, which owns the richer pasteboard types.
+/// Puts a history entry back on the clipboard — the picture itself for an
+/// image, the files for a file entry, the words for anything else.
 pub fn copy(app: AppHandle, id: i64) -> Result<(), String> {
     let connection = connect().ok_or_else(|| t("Paste 数据库不可用", "Paste\u{2019}s database is unavailable"))?;
-    let text: Option<String> = connection
+    let (kind, text, image): (i64, Option<String>, Option<Vec<u8>>) = connection
         .query_row(
-            "SELECT ZPLAINTEXT FROM ZCLIPBOARDITEMENTITY WHERE Z_PK = ?1",
+            "SELECT ZTYPE, ZPLAINTEXT, ZIMAGEDATA FROM ZCLIPBOARDITEMENTITY WHERE Z_PK = ?1",
             [id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .map_err(|error| error.to_string())?;
-    let text = text.filter(|text| !text.is_empty()).ok_or_else(|| t("这条没有文本内容", "That entry has no text"))?;
-    app.clipboard().write_text(text).map_err(|error| error.to_string())
+
+    match kind {
+        KIND_IMAGE => write_image(&image.unwrap_or_default()),
+        // Files are Paste's own: it holds them as promises the pasteboard
+        // asks it for, and copying the paths as text is not the same thing.
+        KIND_FILES => Err(t("文件交给 Paste 取", "Paste holds the files themselves").to_string()),
+        _ => {
+            let text = text
+                .filter(|text| !text.is_empty())
+                .ok_or_else(|| t("这条没有文本内容", "That entry has no text"))?;
+            app.clipboard().write_text(text).map_err(|error| error.to_string())
+        }
+    }
+}
+
+/// Puts a picture on the pasteboard under both types apps ask for: the file as
+/// Paste stored it, and the representation AppKit draws from.
+fn write_image(stored: &[u8]) -> Result<(), String> {
+    let (image, data) =
+        decode_image(stored).ok_or_else(|| t("这张图片读不出来", "That image could not be read"))?;
+    let pasteboard = NSPasteboard::generalPasteboard();
+    pasteboard.clearContents();
+    unsafe {
+        let types = NSArray::from_slice(&[NSPasteboardTypePNG, NSPasteboardTypeTIFF]);
+        pasteboard.declareTypes_owner(&types, None);
+        pasteboard.setData_forType(Some(&data), NSPasteboardTypePNG);
+        if let Some(tiff) = image.TIFFRepresentation() {
+            pasteboard.setData_forType(Some(&tiff), NSPasteboardTypeTIFF);
+        }
+    }
+    Ok(())
+}
+
+/// Paste keeps a byte of its own in front of the file it stored, so the image
+/// is read from wherever it actually starts.
+fn decode_image(stored: &[u8]) -> Option<(Retained<NSImage>, Retained<NSData>)> {
+    for offset in [0usize, 1] {
+        let bytes = stored.get(offset..)?;
+        let data = NSData::with_bytes(bytes);
+        if let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) {
+            return Some((image, data));
+        }
+    }
+    None
 }
 
 /// Paste registers this scheme for exactly this purpose (see its AppDelegate):

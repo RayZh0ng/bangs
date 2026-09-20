@@ -7,11 +7,16 @@ import { useNow } from "../lib/useNow";
 import { waitingSessions, useDev } from "../store/dev";
 import { lineAt, useLyrics } from "../store/lyrics";
 import { elapsedAt, isMediaLive, useMedia } from "../store/media";
+import { useActivities } from "../store/activities";
 import { useNotch } from "../store/notch";
 import { useShelf } from "../store/shelf";
+import { useTodos } from "../store/todos";
 import { CompactView, type Activity } from "./CompactView";
 import { DropView } from "./DropView";
 import { ExpandedView } from "./ExpandedView";
+
+/** How long a new to-do stays beside the collapsed notch. */
+const TODO_REMINDER_MS = 5 * 60_000;
 
 export function Notch() {
   const mode = useNotch((s) => s.mode);
@@ -24,6 +29,8 @@ export function Notch() {
   const shelfCount = useShelf((s) => s.items.length);
   const waiting = useDev((s) => waitingSessions(s.sessions).length);
   const lyricLines = useLyrics((s) => s.lines);
+  const docked = useActivities((s) => s.items[0] ?? null);
+  const newestTodo = useTodos((s) => s.items.find((item) => !s.dusting.includes(item.id)) ?? null);
   const lyricsTimed = useLyrics((s) => s.timed);
 
   // The lyric sweep needs a fast clock; everything else here is slow.
@@ -48,8 +55,21 @@ export function Notch() {
         }
       : null;
 
-  const activity: Activity = { attention: waiting, media: live, lyric, shelfCount };
-  const hasActivity = activity.attention > 0 || !!activity.media || activity.shelfCount > 0;
+  // A to-do is a reminder, not live activity: it rides the strip for a while
+  // after it is written down and then lets the notch rest again. The list
+  // itself is always a hover away. Music that is actually playing keeps the
+  // strip — a lyric mid-line is not worth interrupting — but a player left
+  // paused half an hour ago does not.
+  const fresh = newestTodo && now - newestTodo.createdAt < TODO_REMINDER_MS;
+  const todo = fresh && !live?.playing ? newestTodo : null;
+
+  const activity: Activity = { attention: waiting, docked, media: live, lyric, todo, shelfCount };
+  const hasActivity =
+    activity.attention > 0 ||
+    !!activity.docked ||
+    !!activity.media ||
+    !!activity.todo ||
+    activity.shelfCount > 0;
 
   const base = baseNotch(screen);
   const size = notchSize(

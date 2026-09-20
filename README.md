@@ -19,9 +19,18 @@ wants "Run anyway" once.
 - **Clipboard**: on macOS the panel mirrors gxlself's own Paste app (`gxlself.paste-tool`) and
   offers to install it when it is missing; on Windows, where there is no Paste, Bangs records the
   history itself. Click an entry to put it back on the clipboard.
+- **To-do**: a short list you type into — the one place the notch takes the keyboard, and only while
+  the field is focused. Click a line when it is done and it comes apart and blows off the list;
+  nothing is kept. A new line waits beside the collapsed notch for a few minutes unless something
+  is playing.
+- **Board**: anything else on the machine can dock a row — a title, a subtitle, a progress bar and
+  at most a link — by writing a JSON file, or by posting to a loopback endpoint. The newest row
+  shows beside the collapsed notch. See [docs/plugins.md](docs/plugins.md).
 
-Screens with a hardware notch get wings around it; other screens get a virtual notch (or a thin bar,
-see the tray menu).
+Screens with a hardware notch get wings around it; other screens get a virtual notch, which shrinks
+to a thin bar when nothing is happening (the tray menu can turn that off). Full-screen video, games
+and presentations get the screen to themselves: the notch collapses to that bar on macOS and hides
+altogether on Windows — unless the screen has a real cutout, where it was never in the way.
 
 ## Develop
 
@@ -77,6 +86,8 @@ The clipboard panel asks Paste for its panel with `open pasteg://panel`, which P
 | Notch size | `NSScreen.safeAreaInsets` / `auxiliaryTop*Area` | Virtual only |
 | Dev panel | Claude Code / Codex session state and VS Code / Cursor state | Same, using Windows application-data paths |
 | Clipboard | Paste's Core Data store, read-only | Bangs' own history |
+| Full screen | A layer-0 window covering the display (`CGWindowListCopyWindowInfo`) | `SHQueryUserNotificationState` |
+| Keyboard | The panel is made key while the to-do field is focused, and resigns it after | `WS_EX_NOACTIVATE` comes off for as long, then focus goes back |
 | Lyrics | QQ Music and NetEase, cached on disk | Same |
 
 The host window is a fixed 640 x 280 transparent window in logical pixels. The visible notch animates
@@ -100,8 +111,9 @@ or its `code` / `cursor` CLI on Windows, with a folder-reveal fallback.
 
 On macOS the clipboard panel opens Paste's local Core Data store (`PasteTool.sqlite`) read-only and
 polls the latest 24 entries every three seconds, checking Paste's sandbox container first. Bangs
-never writes to that database; picking an entry writes to the system clipboard, and image and file
-entries hand over to Paste's own panel (`pasteg://panel`).
+never writes to that database; picking an entry writes to the system clipboard — a picture goes on
+as PNG and TIFF, so it pastes anywhere — while file entries hand over to Paste's own panel
+(`pasteg://panel`), which is what holds them.
 
 On Windows there is no Paste, so Bangs keeps the history: it polls `GetClipboardSequenceNumber`,
 stores what changed (text and dropped file paths, up to 200 entries) in the app data directory, and
@@ -118,6 +130,7 @@ src/                       React UI
   store/                   zustand stores: notch state machine, media, shelf
     dev.ts                 agent sessions, workspaces and busy-to-idle/waiting detection
     clipboard.ts           clipboard history, copy feedback and platform actions
+    TodoPanel.tsx          the to-do list and the field that takes the keyboard
   lib/layout.ts            notch sizes per mode (keep WINDOW in sync with geometry.rs)
   lib/hover.ts             pointer-driven [data-hover] workaround
     lyrics.ts              current lines and the line-at-time lookup
@@ -134,6 +147,7 @@ src-tauri/src/
   clipboard/mod.rs         shared clipboard panel state and commands
   clipboard/mac.rs         read-only Paste store, copy and panel hand-off
   clipboard/win.rs         Bangs' own clipboard history
+  todos.rs                 the to-do list, saved in <config>/todos.json
   shelf.rs                 file metadata, open/reveal, drag preview
   tray.rs, settings.rs      tray menu and persisted settings
 site/                      the landing page published to gh-pages

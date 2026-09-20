@@ -29,6 +29,9 @@ pub struct ScreenInfo {
     pub notch_height: f64,
     pub menu_bar_height: f64,
     pub display_name: String,
+    /// Something is covering this display end to end. Screens with a cutout
+    /// ignore it — the notch is drawn in space the video never gets anyway.
+    pub fullscreen: bool,
 }
 
 /// Where the window's top-left corner sits in the coordinate space of
@@ -51,11 +54,32 @@ struct Inner {
     hit_height: f64,
     screen: ScreenInfo,
     monitor_signature: String,
+    /// Logical, top-left based frame of the monitor the notch sits on.
+    monitor_rect: Option<(f64, f64, f64, f64)>,
 }
 
 impl Geometry {
     pub fn screen(&self) -> ScreenInfo {
         self.0.lock().unwrap().screen.clone()
+    }
+
+    /// The monitor frame to test for full-screen windows, in the coordinates
+    /// `platform::fullscreen_over` expects.
+    fn monitor_rect(&self) -> Option<(f64, f64, f64, f64)> {
+        self.0.lock().unwrap().monitor_rect
+    }
+
+    /// Records what the display is doing; hands back the screen to announce
+    /// when that changed.
+    fn set_fullscreen(&self, fullscreen: bool) -> Option<ScreenInfo> {
+        let mut inner = self.0.lock().unwrap();
+        // A cutout is out of the video's way already, so it never collapses.
+        let fullscreen = fullscreen && !inner.screen.has_notch;
+        if inner.screen.fullscreen == fullscreen {
+            return None;
+        }
+        inner.screen.fullscreen = fullscreen;
+        Some(inner.screen.clone())
     }
 
     /// The interactive area: `width` x `height` logical px, centered at the
@@ -169,6 +193,12 @@ pub fn place_window(app: &AppHandle) {
         Placement { x, y, scale }
     };
 
+    let monitor_rect = (
+        position.x as f64 / scale,
+        position.y as f64 / scale,
+        size.width as f64 / scale,
+        size.height as f64 / scale,
+    );
     let metrics = platform::notch_metrics(&monitor);
     let screen = ScreenInfo {
         platform: std::env::consts::OS.to_string(),
@@ -177,6 +207,7 @@ pub fn place_window(app: &AppHandle) {
         notch_height: metrics.notch_height,
         menu_bar_height: metrics.menu_bar_height,
         display_name: platform::display_label(&monitor).unwrap_or_default(),
+        fullscreen: !metrics.has_notch && platform::fullscreen_over(monitor_rect),
     };
 
     let (hit_width, hit_height) = {
@@ -194,6 +225,7 @@ pub fn place_window(app: &AppHandle) {
         let mut inner = geometry.0.lock().unwrap();
         inner.placement = Some(placement);
         inner.monitor_signature = signature;
+        inner.monitor_rect = Some(monitor_rect);
         let changed = inner.screen != screen;
         inner.screen = screen.clone();
         changed
@@ -224,6 +256,14 @@ pub fn spawn_display_watcher(app: AppHandle) {
                 place_window(&handle);
                 crate::tray::refresh(&handle);
             });
+        }
+        // Full-screen video, games and presentations: macOS shrinks the notch
+        // to its idle bar, Windows steps out of the way altogether.
+        if let Some(rect) = app.state::<Geometry>().monitor_rect() {
+            let fullscreen = platform::fullscreen_over(rect);
+            if let Some(screen) = app.state::<Geometry>().set_fullscreen(fullscreen) {
+                let _ = app.emit("bangs://screen", &screen);
+            }
         }
         #[cfg(windows)]
         platform::sync_fullscreen_visibility(&app);

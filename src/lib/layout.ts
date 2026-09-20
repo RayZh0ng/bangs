@@ -73,6 +73,9 @@ export function notchSize(
     case "success":
       return { width: Math.max(DROP.width, base.width + 160), height: base.height + DROP.body };
     case "compact": {
+      // Full-screen video gets the whole display: shrink to the bar rather
+      // than float a black pill over it. A cutout screen never reports this.
+      if (screen.fullscreen) return HANDLE;
       const gap = centerGap(screen);
       // Translated lyrics need two readable rows. Original-only lyrics fit the
       // regular compact height.

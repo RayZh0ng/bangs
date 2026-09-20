@@ -549,7 +549,7 @@ fn fetch_qq_candidates(client: &reqwest::blocking::Client, request: &Request) ->
         let before = batch.candidates.len();
         let Ok(response) = client
             .get(format!(
-                "{SEARCH_URL}?w={}&format=json&n=10&p=1",
+                "{SEARCH_URL}?w={}&format=json&n=20&p=1",
                 encode(&query)
             ))
             .header("Referer", REFERER)
@@ -729,7 +729,7 @@ fn lyric_payload(client: &reqwest::blocking::Client, song_mid: &str) -> Option<s
 }
 
 fn normalize(value: &str) -> String {
-    value
+    crate::platform::to_simplified(value)
         .chars()
         .filter(|c| c.is_alphanumeric())
         .collect::<String>()

@@ -8,6 +8,8 @@ export interface ScreenInfo {
   notchHeight: number;
   menuBarHeight: number;
   displayName: string;
+  /** Something covers this display end to end; never set on a cutout screen. */
+  fullscreen: boolean;
 }
 
 export interface Settings {
@@ -140,6 +142,29 @@ export interface ClipboardState {
   items: ClipItem[];
 }
 
+/** A row another program asked the notch to show; see docs/plugins.md. */
+export interface Activity {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  /** A glyph name the notch knows; anything else draws a dot. */
+  icon?: string | null;
+  /** 0…1, drawn as a bar under the title. */
+  progress?: number | null;
+  /** http(s) only; the native side opens it, the webview never sees a command. */
+  url?: string | null;
+  expiresAt?: number | null;
+  updatedAt: number;
+}
+
+/** One line on the to-do list, kept in `<config>/todos.json`. */
+export interface Todo {
+  id: string;
+  text: string;
+  /** Unix milliseconds. */
+  createdAt: number;
+}
+
 export interface Bootstrap {
   screen: ScreenInfo;
   settings: Settings;
@@ -147,6 +172,8 @@ export interface Bootstrap {
   lyrics: Lyrics;
   dev: DevState;
   clipboard: ClipboardState;
+  activities: Activity[];
+  todos: Todo[];
   dragIcon: string | null;
   /** "zh" or "en", resolved natively. */
   language: string;
@@ -163,7 +190,9 @@ export const native = {
   ready: () => invoke<void>("notch_ready"),
   setHitRect: (width: number, height: number) => invoke<void>("set_hit_rect", { width, height }),
   /** The webview cannot set the cursor itself here; see src/lib/hover.ts. */
-  setCursor: (shape: "default" | "pointer" | "grab") => invoke<void>("set_cursor", { shape }),
+  setCursor: (shape: "default" | "pointer" | "grab" | "text") => invoke<void>("set_cursor", { shape }),
+  /** Only while a field in the panel is focused; see src/components/TodoPanel.tsx. */
+  captureKeyboard: (capture: boolean) => invoke<void>("capture_keyboard", { capture }),
   media: (command: MediaCommand) => invoke<void>("media_command", { command }),
   refreshLyrics: () => invoke<void>("lyrics_refresh"),
   openProject: (path: string, editor?: string) => invoke<void>("open_project", { path, editor }),
@@ -173,6 +202,10 @@ export const native = {
   /** Loads the next page; false once everything is loaded. */
   clipboardMore: () => invoke<boolean>("clipboard_more"),
   clipboardInstall: () => invoke<void>("clipboard_install"),
+  /** Opens the link on a plugin row; the native side looks the link up itself. */
+  activityOpen: (id: string) => invoke<void>("activity_open", { id }),
+  todoAdd: (text: string) => invoke<void>("todo_add", { text }),
+  todoRemove: (id: string) => invoke<void>("todo_remove", { id }),
   inspectFiles: (paths: string[]) => invoke<FileMeta[]>("shelf_inspect", { paths }),
   openFile: (path: string) => invoke<void>("open_file", { path }),
   revealFile: (path: string) => invoke<void>("reveal_file", { path }),
@@ -203,6 +236,10 @@ export const events = {
     listen<Lyrics>("bangs://lyrics", (event) => handler(event.payload)),
   dev: (handler: (dev: DevState) => void) =>
     listen<DevState>("bangs://dev", (event) => handler(event.payload)),
+  activities: (handler: (activities: Activity[]) => void) =>
+    listen<Activity[]>("bangs://activities", (event) => handler(event.payload)),
+  todos: (handler: (todos: Todo[]) => void) =>
+    listen<Todo[]>("bangs://todos", (event) => handler(event.payload)),
   clipboard: (handler: (clipboard: ClipboardState) => void) =>
     listen<ClipboardState>("bangs://clipboard", (event) => handler(event.payload)),
 };

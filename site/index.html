@@ -6,7 +6,7 @@
     <title>Bangs — 把刘海变成你的工作台</title>
     <meta
       name="description"
-      content="Bangs 是 macOS 和 Windows 通用的刘海应用：逐字歌词、Claude Code 会话、剪贴板历史、文件暂存架，都收在屏幕顶端那一条里。"
+      content="Bangs 是 macOS 和 Windows 通用的刘海应用：逐字歌词、Claude Code 会话、剪贴板历史、文件暂存架、待办，都收在屏幕顶端那一条里。"
     />
     <meta property="og:title" content="Bangs — 把刘海变成你的工作台" />
     <meta property="og:description" content="逐字歌词、AI 会话、剪贴板、暂存架，都在屏幕顶端那一条里。macOS 与 Windows 通用。" />
@@ -85,7 +85,7 @@
                   <div class="notch__panel">
                     <div class="notch__tabs">
                       <span class="tab is-active">♫ 音乐</span><span class="tab">暂存</span>
-                      <span class="tab">代码</span><span class="tab">剪贴板</span>
+                      <span class="tab">代码</span><span class="tab">剪贴板</span><span class="tab">待办</span>
                     </div>
                     <div class="notch__content">
                       <div class="cover"></div>
@@ -151,6 +151,11 @@
             <h3 data-en="Shelf">暂存架</h3>
             <p data-en="Drop files on the notch to park them, drag them back out into another window. No more hunting for an empty patch of desktop.">文件拖到刘海上先放着，换个窗口再拖出去。跨应用搬文件不用再找一块空桌面。</p>
           </article>
+
+          <article class="card">
+            <h3 data-en="To-do">待办</h3>
+            <p data-en="Type a line, press return. Click it when it is done and the words come apart and blow off the list — nothing is kept. It is the one place the notch takes the keyboard, and only while the field is focused.">输入一行，回车记下；做完点一下，字就散开飘走，不留已完成。这是刘海唯一会用键盘的地方，也只在输入框聚焦时才借。</p>
+          </article>
         </div>
       </section>
 
@@ -165,9 +170,8 @@
             <a class="button button--primary" href="https://github.com/gxlself/bangs/releases/latest" data-mac-link>
               <span data-en="Get the latest">获取最新版</span>
             </a>
-            <p class="release__hint" data-en="Not signed with an Apple certificate, so the first launch needs System Settings → Privacy &amp; Security → Open Anyway, or &lt;code&gt;xattr -dr com.apple.quarantine /Applications/Bangs.app&lt;/code&gt; in a terminal.">
-              没有花钱买苹果的签名，第一次打开要在「系统设置 → 隐私与安全性」里点一下「仍要打开」，
-              或者终端里 <code>xattr -dr com.apple.quarantine /Applications/Bangs.app</code>。
+            <p class="release__hint" data-en="Signed with a Developer ID and notarized by Apple, so it opens on a double click.">
+              用 Developer ID 签了名并经过 Apple 公证，下载下来双击就能打开。
             </p>
           </article>
           <article class="release" data-release-win>

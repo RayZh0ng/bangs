@@ -1,4 +1,4 @@
-import type { SVGProps } from "react";
+import type { ComponentType, SVGProps } from "react";
 
 type IconProps = SVGProps<SVGSVGElement>;
 
@@ -94,10 +94,12 @@ export const CodeIcon = (props: IconProps) => (
   </Stroke>
 );
 
+// Two sheets stacked, not a clipboard with a clip: at 13px the clip merges
+// into the outline and leaves an empty box.
 export const ClipboardIcon = (props: IconProps) => (
   <Stroke {...props}>
-    <rect x="4.7" y="5" width="14.6" height="15.4" rx="3.2" />
-    <rect x="9" y="2.6" width="6" height="4.2" rx="1.6" fill="currentColor" stroke="none" />
+    <rect x="8.6" y="3.2" width="11.2" height="13.4" rx="3" />
+    <path d="M15.4 20.8H7a2.8 2.8 0 0 1-2.8-2.8V8.2" />
   </Stroke>
 );
 
@@ -107,9 +109,55 @@ export const CheckIcon = (props: IconProps) => (
   </Stroke>
 );
 
+export const PlusIcon = (props: IconProps) => (
+  <Stroke {...props}>
+    <path d="M12 5.5v13M5.5 12h13" />
+  </Stroke>
+);
+
+/** A list with things ticked off it. */
+export const TodoIcon = (props: IconProps) => (
+  <Stroke {...props}>
+    <path d="m3.5 7.7 2.2 2.2 3.8-4.4" />
+    <path d="m3.5 16.5 2.2 2.2 3.8-4.4" />
+    <path d="M13.5 8.4H21M13.5 17.2H21" />
+  </Stroke>
+);
+
+/** The plugin board: a slot other programs dock a row into. */
+export const BoardIcon = (props: IconProps) => (
+  <Stroke {...props}>
+    <rect x="3" y="4.5" width="18" height="15" rx="3.2" />
+    <path d="M7.5 9.5h9M7.5 14h5" />
+  </Stroke>
+);
+
 export const RefreshIcon = (props: IconProps) => (
   <Stroke {...props}>
     <path d="M20 7v5h-5" />
     <path d="M19 12a7 7 0 1 0-1.8 4.7" />
   </Stroke>
 );
+
+/** The glyphs a plugin may name; anything else falls back to a dot. */
+const GLYPHS: Record<string, ComponentType<IconProps>> = {
+  board: BoardIcon,
+  music: MusicIcon,
+  shelf: ShelfIcon,
+  code: CodeIcon,
+  clipboard: ClipboardIcon,
+  folder: FolderIcon,
+  check: CheckIcon,
+  todo: TodoIcon,
+  pin: PinIcon,
+};
+
+export function GlyphFor({ name, ...props }: Omit<IconProps, "name"> & { name?: string | null }) {
+  const Glyph = name ? GLYPHS[name] : undefined;
+  if (Glyph) return <Glyph {...props} />;
+  return (
+    <Solid {...props} viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4.5" />
+    </Solid>
+  );
+}
