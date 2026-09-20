@@ -24,6 +24,9 @@ const LYRIC_URL: &str = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.f
 /// Returns QRC, which carries a timing per character.
 const QRC_URL: &str = "https://c.y.qq.com/qqmusic/fcgi-bin/lyric_download.fcg";
 const REFERER: &str = "https://y.qq.com/portal/player.html";
+/// Search results to weigh. Wide enough that a track still turns up when the
+/// artist term misleads the ranking and its album-mates come first.
+const SEARCH_RESULTS: usize = 20;
 const TIMEOUT: Duration = Duration::from_secs(8);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -209,17 +212,31 @@ fn fetch(title: &str, artist: &str) -> Option<Vec<LyricLine>> {
     // so it is the second thing to try.
     let plain_title = plain_title(title);
     let plain_artist = first_artist(artist);
-    let mut queries = vec![format!("{title} {artist}")];
-    let plain = format!("{plain_title} {plain_artist}");
-    if plain != queries[0] {
-        queries.push(plain);
-    }
-    for query in queries {
-        if let Some(lines) = lookup(&client, &query, &plain_title, &plain_artist) {
+    // `true` where only an exact title will do; see the last query.
+    let mut queries = vec![(format!("{title} {artist}"), false)];
+    push_query(&mut queries, format!("{plain_title} {plain_artist}"), false);
+    // Apple Music hands over romanized names for part of its Chinese
+    // catalogue — 赵雷 arrives as "Lei Zhao" — and an artist the search cannot
+    // place drags the song itself out of the results, because every other
+    // track on the album matches the query just as poorly. The title alone
+    // finds it, and taking only an exact title keeps that from turning into
+    // a different song with a similar name.
+    push_query(&mut queries, plain_title.clone(), true);
+    for (query, exact_title) in queries {
+        if let Some(lines) = lookup(&client, &query, &plain_title, &plain_artist, exact_title) {
             return Some(lines);
         }
     }
     None
+}
+
+/// Queues a query unless an earlier one already says the same thing.
+fn push_query(queries: &mut Vec<(String, bool)>, query: String, exact_title: bool) {
+    let query = query.trim().to_string();
+    if query.is_empty() || queries.iter().any(|(queued, _)| *queued == query) {
+        return;
+    }
+    queries.push((query, exact_title));
 }
 
 /// Drops the suffixes players add to a title: "Song - Live", "Song (feat. X)".
@@ -242,9 +259,10 @@ fn lookup(
     query: &str,
     title: &str,
     artist: &str,
+    exact_title: bool,
 ) -> Option<Vec<LyricLine>> {
     let response = client
-        .get(format!("{SEARCH_URL}?w={}&format=json&n=5&p=1", encode(query)))
+        .get(format!("{SEARCH_URL}?w={}&format=json&n={SEARCH_RESULTS}&p=1", encode(query)))
         .header("Referer", REFERER)
         .send();
     let body = match response.and_then(|response| response.text()) {
@@ -263,7 +281,7 @@ fn lookup(
     };
 
     let songs = search["data"]["song"]["list"].as_array()?;
-    let song = best_match(songs, title, artist)?;
+    let song = best_match(songs, title, artist, exact_title)?;
     let song_mid = song["songmid"].as_str().unwrap_or_default().to_string();
 
     // Per-character timing first; the plain LRC endpoint is the fallback.
@@ -317,6 +335,7 @@ fn best_match<'a>(
     songs: &'a [serde_json::Value],
     title: &str,
     artist: &str,
+    exact_title: bool,
 ) -> Option<&'a serde_json::Value> {
     let wanted_title = normalize(title);
     let wanted_artist = normalize(artist);
@@ -347,13 +366,24 @@ fn best_match<'a>(
         } else {
             0
         };
-        title_score + artist_score
+        (title_score, artist_score)
     };
 
-    songs
-        .iter()
-        .max_by_key(|song| score(song))
-        .filter(|song| score(song) > 0)
+    let mut best: Option<(&serde_json::Value, i32)> = None;
+    for song in songs {
+        let (title_score, artist_score) = score(song);
+        if title_score == 0 || (exact_title && title_score < 2) {
+            continue;
+        }
+        let total = title_score + artist_score;
+        // The endpoint has already ranked what it returned, so a later song
+        // has to beat the one in hand outright: a duet or a remix of the same
+        // song scores the same as the original and must not displace it.
+        if best.is_none_or(|(_, best_total)| total > best_total) {
+            best = Some((song, total));
+        }
+    }
+    best.map(|(song, _)| song)
 }
 
 /// Downloads the QRC document and turns it into timed lines. The response is
@@ -523,4 +553,58 @@ fn with_translation(mut lines: Vec<LyricLine>, translations: Vec<LyricLine>) -> 
             .filter(|text| !text.is_empty() && *text != line.text);
     }
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn song(name: &str, singers: &[&str]) -> serde_json::Value {
+        serde_json::json!({
+            "songname": name,
+            "singer": singers.iter().map(|name| serde_json::json!({ "name": name })).collect::<Vec<_>>(),
+        })
+    }
+
+    fn pick<'a>(songs: &'a [serde_json::Value], title: &str, artist: &str, exact: bool) -> Option<&'a str> {
+        best_match(songs, title, artist, exact).map(|song| song["songname"].as_str().unwrap())
+    }
+
+    #[test]
+    fn keeps_the_best_ranked_of_equally_good_matches() {
+        // A duet scores exactly like the original, and the endpoint put the
+        // original first.
+        let songs = [song("无法长大", &["赵雷"]), song("无法长大", &["张大为", "赵雷"])];
+        assert_eq!(pick(&songs, "无法长大", "赵雷", false), Some("无法长大"));
+        assert!(std::ptr::eq(best_match(&songs, "无法长大", "赵雷", false).unwrap(), &songs[0]));
+    }
+
+    #[test]
+    fn ignores_other_songs_by_the_same_artist() {
+        let songs = [song("鼓楼", &["赵雷"]), song("无法长大", &["赵雷"])];
+        assert_eq!(pick(&songs, "无法长大", "赵雷", false), Some("无法长大"));
+    }
+
+    #[test]
+    fn finds_the_track_when_the_artist_arrives_romanized() {
+        // Apple Music says "Lei Zhao"; QQ Music says 赵雷. Only the title lines up.
+        let songs = [song("鼓楼", &["赵雷"]), song("无法长大", &["赵雷"])];
+        assert_eq!(pick(&songs, "无法长大", "Lei Zhao", true), Some("无法长大"));
+    }
+
+    #[test]
+    fn a_title_only_search_turns_down_an_inexact_title() {
+        let songs = [song("无法长大 (DJ 阿若版)", &["赵雷"])];
+        assert_eq!(pick(&songs, "无法长大", "Lei Zhao", true), None);
+        assert_eq!(pick(&songs, "无法长大", "Lei Zhao", false), Some("无法长大 (DJ 阿若版)"));
+    }
+
+    #[test]
+    fn queues_each_query_once() {
+        let mut queries = vec![("Song Artist".to_string(), false)];
+        push_query(&mut queries, "Song Artist".to_string(), false);
+        push_query(&mut queries, "Song ".to_string(), true);
+        push_query(&mut queries, "Song".to_string(), true);
+        assert_eq!(queries, [("Song Artist".to_string(), false), ("Song".to_string(), true)]);
+    }
 }
