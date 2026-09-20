@@ -2,14 +2,16 @@ use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 
 use tauri::{AppHandle, Manager, Monitor};
 use windows::Win32::Foundation::POINT;
-use windows::Win32::Globalization::GetUserDefaultLocaleName;
+use windows::Win32::Globalization::{
+    GetUserDefaultLocaleName, LCMapStringEx, LCMAP_SIMPLIFIED_CHINESE, LOCALE_NAME_SYSTEM_DEFAULT,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, VIRTUAL_KEY, VK_LBUTTON, VK_RBUTTON,
 };
 use windows::Win32::UI::Shell::{
     SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
 };
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HWND, LPARAM};
 use windows::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn};
 use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -53,6 +55,34 @@ pub fn set_hit_region(app: &AppHandle, width: f64, height: f64, scale: f64) {
             let _ = DeleteObject(region.into());
         }
     }
+}
+
+/// Folds traditional characters to simplified ones, so a title that reads
+/// 當時的月亮 in one catalogue can be compared with 当时的月亮 in another.
+/// The mapping is the system's; text with nothing to fold comes back as it was.
+pub fn to_simplified(text: &str) -> String {
+    let source: Vec<u16> = text.encode_utf16().collect();
+    if source.is_empty() {
+        return String::new();
+    }
+    // The mapping is character for character, but a surrogate pair may fold to
+    // a single unit, never to more, so the source length is room enough.
+    let mut folded = vec![0u16; source.len()];
+    let written = unsafe {
+        LCMapStringEx(
+            LOCALE_NAME_SYSTEM_DEFAULT,
+            LCMAP_SIMPLIFIED_CHINESE,
+            &source,
+            Some(&mut folded),
+            None,
+            None,
+            LPARAM(0),
+        )
+    };
+    if written <= 0 {
+        return text.to_string();
+    }
+    String::from_utf16_lossy(&folded[..written as usize])
 }
 
 /// The language the system prefers, as a tag like "zh-CN" or "en-US".

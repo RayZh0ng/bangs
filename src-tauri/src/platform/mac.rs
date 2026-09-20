@@ -189,6 +189,16 @@ fn matching_screen(mtm: MainThreadMarker, monitor: &Monitor) -> Option<Retained<
     })
 }
 
+/// Folds traditional characters to simplified ones, so a title that reads
+/// 當時的月亮 in one catalogue can be compared with 当时的月亮 in another.
+/// ICU does the work; text with nothing to fold comes back as it was.
+pub fn to_simplified(text: &str) -> String {
+    NSString::from_str(text)
+        .stringByApplyingTransform_reverse(ns_string!("Hant-Hans"), false)
+        .map(|folded| folded.to_string())
+        .unwrap_or_else(|| text.to_string())
+}
+
 /// Opens a folder in VS Code or Cursor; fails when that editor is missing.
 pub fn open_in_editor(editor: &str, path: &str) -> Result<(), String> {
     let app = match editor {

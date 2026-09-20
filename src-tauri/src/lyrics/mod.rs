@@ -325,8 +325,12 @@ fn lyric_payload(client: &reqwest::blocking::Client, song_mid: &str) -> Option<s
     serde_json::from_str(strip_jsonp(&raw)).ok()
 }
 
+/// Titles and names are compared folded: catalogues disagree about traditional
+/// and simplified characters — Apple Music says 當時的月亮 where QQ Music says
+/// 当时的月亮 — and about spacing and case.
 fn normalize(value: &str) -> String {
-    value.chars().filter(|c| !c.is_whitespace()).collect::<String>().to_lowercase()
+    let folded = crate::platform::to_simplified(value);
+    folded.chars().filter(|c| !c.is_whitespace()).collect::<String>().to_lowercase()
 }
 
 /// Prefers an exact title match by the same artist; the search endpoint
@@ -597,6 +601,13 @@ mod tests {
         let songs = [song("无法长大 (DJ 阿若版)", &["赵雷"])];
         assert_eq!(pick(&songs, "无法长大", "Lei Zhao", true), None);
         assert_eq!(pick(&songs, "无法长大", "Lei Zhao", false), Some("无法长大 (DJ 阿若版)"));
+    }
+
+    #[test]
+    fn reads_past_traditional_characters() {
+        // Apple Music hands over 當時的月亮; QQ Music lists 当时的月亮.
+        let songs = [song("当时的月亮", &["王菲"])];
+        assert_eq!(pick(&songs, "當時的月亮", "Faye Wong", true), Some("当时的月亮"));
     }
 
     #[test]
