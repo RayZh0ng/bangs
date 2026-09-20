@@ -108,8 +108,9 @@ or its `code` / `cursor` CLI on Windows, with a folder-reveal fallback.
 
 On macOS the clipboard panel opens Paste's local Core Data store (`PasteTool.sqlite`) read-only and
 polls the latest 24 entries every three seconds, checking Paste's sandbox container first. Bangs
-never writes to that database; picking an entry writes to the system clipboard, and image and file
-entries hand over to Paste's own panel (`pasteg://panel`).
+never writes to that database; picking an entry writes to the system clipboard — a picture goes on
+as PNG and TIFF, so it pastes anywhere — while file entries hand over to Paste's own panel
+(`pasteg://panel`), which is what holds them.
 
 On Windows there is no Paste, so Bangs keeps the history: it polls `GetClipboardSequenceNumber`,
 stores what changed (text and dropped file paths, up to 200 entries) in the app data directory, and

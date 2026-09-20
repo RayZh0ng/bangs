@@ -31,9 +31,19 @@ const SEARCH_RESULTS: usize = 20;
 /// be taken for the same recording. Two masters of a song are a second or two
 /// apart; a cover or a live take is tens of seconds.
 const DURATION_SLACK: f64 = 10.0;
+/// Near enough to be the same master, not another take of the same song.
+const SAME_RECORDING: f64 = 3.0;
+/// How far down the results a length alone is still worth trusting. The query
+/// carried the title and the artist, so the engine put what it thinks answers
+/// them at the top; further down, a length that happens to line up is chance.
+const TRUSTED_RANK: usize = 5;
+/// Results asked for a lyric before a query is written off. One that comes
+/// back wordless is not the end of it, but the list is ordered by how likely
+/// each is to be the song, and the tail is not worth the round trips.
+const ATTEMPTS: usize = 3;
 /// Bumped whenever the matching changes enough that what an older version
 /// picked is not to be trusted — a cached file may hold a cover's timeline.
-const CACHE_VERSION: u32 = 2;
+const CACHE_VERSION: u32 = 3;
 const TIMEOUT: Duration = Duration::from_secs(8);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -310,15 +320,27 @@ fn lookup(
     };
 
     let songs = search["data"]["song"]["list"].as_array()?;
-    let song = best_match(songs, title, artist, duration, exact_title)?;
-    let song_mid = song["songmid"].as_str().unwrap_or_default().to_string();
+    // A result can turn out to carry no words — an instrumental, or a lyric
+    // that is nothing but credits — and the next best candidate deserves its
+    // turn before the whole query is given up on.
+    ranked_matches(songs, title, artist, duration, exact_title)
+        .into_iter()
+        .take(ATTEMPTS)
+        .find_map(|song| lyrics_for(client, song))
+}
 
+/// The lyric for one result, if it has one worth showing.
+fn lyrics_for(
+    client: &reqwest::blocking::Client,
+    song: &serde_json::Value,
+) -> Option<Vec<LyricLine>> {
     // Per-character timing first; the plain LRC endpoint is the fallback.
     if let Some(id) = song["songid"].as_i64() {
-        if let Some(lines) = fetch_qrc(client, id) {
+        if let Some(lines) = fetch_qrc(client, id).filter(|lines| has_words(lines)) {
             return Some(lines);
         }
     }
+    let song_mid = song["songmid"].as_str().unwrap_or_default();
     if song_mid.is_empty() {
         return None;
     }
@@ -327,9 +349,9 @@ fn lookup(
         if attempt > 0 {
             thread::sleep(Duration::from_millis(400));
         }
-        let Some(payload) = lyric_payload(client, &song_mid) else { continue };
+        let Some(payload) = lyric_payload(client, song_mid) else { continue };
         let lines = parse_lrc(payload["lyric"].as_str().unwrap_or_default());
-        if lines.is_empty() {
+        if !has_words(&lines) {
             continue;
         }
         return Some(with_translation(
@@ -357,20 +379,40 @@ fn lyric_payload(client: &reqwest::blocking::Client, song_mid: &str) -> Option<s
 /// Titles and names are compared folded: catalogues disagree about traditional
 /// and simplified characters — Apple Music says 當時的月亮 where QQ Music says
 /// 当时的月亮 — and about spacing and case.
+/// The lines a result opens with that are not the song: who wrote it, who
+/// mixed it, or QQ's standing sentence for a track that has no words at all.
+const CREDITS: &[&str] = &[
+    "作词", "作曲", "编曲", "制作", "混音", "监制", "出品", "录音", "母带", "和声", "词：", "曲：",
+    "Written by", "Composed by", "Lyrics by", "Produced by", "Arranged by", "Mixed by",
+];
+
+/// Whether a result has anything to sing. An instrumental comes back as a
+/// single standing sentence, and a credits-only lyric says as little — both
+/// are better passed over so the next candidate gets a turn.
+fn has_words(lines: &[LyricLine]) -> bool {
+    lines.iter().any(|line| {
+        let text = line.text.trim();
+        !text.is_empty()
+            && !text.contains("纯音乐")
+            && !CREDITS.iter().any(|credit| text.starts_with(credit))
+    })
+}
+
 fn normalize(value: &str) -> String {
     let folded = crate::platform::to_simplified(value);
     folded.chars().filter(|c| !c.is_whitespace()).collect::<String>().to_lowercase()
 }
 
-/// Prefers an exact title match by the same artist; the search endpoint
-/// otherwise happily returns covers and remixes first.
-fn best_match<'a>(
+/// The results that could be this song, best first: an exact title by the same
+/// artist, running the length the player reports. The search endpoint
+/// otherwise happily puts covers and remixes above the recording itself.
+fn ranked_matches<'a>(
     songs: &'a [serde_json::Value],
     title: &str,
     artist: &str,
     duration: Option<f64>,
     exact_title: bool,
-) -> Option<&'a serde_json::Value> {
+) -> Vec<&'a serde_json::Value> {
     let wanted_title = normalize(title);
     let wanted_artist = normalize(artist);
 
@@ -412,12 +454,9 @@ fn best_match<'a>(
         _ => None,
     };
 
-    let mut best: Option<(&serde_json::Value, i32, f64)> = None;
-    for song in songs {
+    let mut matches: Vec<(&serde_json::Value, i32, f64, usize)> = Vec::new();
+    for (rank, song) in songs.iter().enumerate() {
         let (title_score, artist_score) = score(song);
-        if title_score == 0 || (exact_title && title_score < 2) {
-            continue;
-        }
         // A recording of a different length is a different recording. A cover
         // carries the same words on a timeline of its own, which reads as
         // lyrics that drift — worse than no lyrics at all.
@@ -425,19 +464,29 @@ fn best_match<'a>(
         if gap.is_some_and(|gap| gap > DURATION_SLACK) {
             continue;
         }
-        let total = title_score + artist_score;
-        let gap = gap.unwrap_or(f64::MAX);
-        // The endpoint has already ranked what it returned, so a later song
-        // has to beat the one in hand outright — by scoring higher, or by
-        // being the length the player is playing.
-        let better = best.is_none_or(|(_, best_total, best_gap)| {
-            total > best_total || (total == best_total && gap < best_gap)
-        });
-        if better {
-            best = Some((song, total, gap));
+        let length_score = match gap {
+            Some(gap) if gap <= SAME_RECORDING => 2,
+            Some(_) => 1,
+            None => 0,
+        };
+        // Catalogues translate: Apple Music calls 西湖 "West Lake" and 痛仰乐队
+        // "Miserable Faith", and neither word survives to be compared. The
+        // search understood the query anyway — it answered with the song — so
+        // a result it ranked at the top, running the length that is playing,
+        // is taken on the engine's word. A title-only query gets no such
+        // benefit: there the title is all that was asked.
+        let vouched = !exact_title && rank < TRUSTED_RANK && length_score == 2;
+        if (title_score == 0 && !vouched) || (exact_title && title_score < 2) {
+            continue;
         }
+        matches.push((song, title_score + artist_score + length_score, gap.unwrap_or(f64::MAX), rank));
     }
-    best.map(|(song, _, _)| song)
+    // Score first, then the length closest to what is playing; where neither
+    // separates two results, the order the endpoint returned them in stands.
+    matches.sort_by(|left, right| {
+        right.1.cmp(&left.1).then(left.2.total_cmp(&right.2)).then(left.3.cmp(&right.3))
+    });
+    matches.into_iter().map(|(song, ..)| song).collect()
 }
 
 /// Downloads the QRC document and turns it into timed lines. The response is
@@ -613,6 +662,16 @@ fn with_translation(mut lines: Vec<LyricLine>, translations: Vec<LyricLine>) -> 
 mod tests {
     use super::*;
 
+    fn best_match<'a>(
+        songs: &'a [serde_json::Value],
+        title: &str,
+        artist: &str,
+        duration: Option<f64>,
+        exact_title: bool,
+    ) -> Option<&'a serde_json::Value> {
+        ranked_matches(songs, title, artist, duration, exact_title).into_iter().next()
+    }
+
     fn song(name: &str, singers: &[&str]) -> serde_json::Value {
         serde_json::json!({
             "songname": name,
@@ -692,6 +751,19 @@ mod tests {
     fn keeps_a_result_whose_length_is_unknown() {
         let songs = [song("小宇", &["张震岳"])];
         assert_eq!(pick_lasting(&songs, "小宇", "A-Yue Chang", 228.0), Some("小宇"));
+    }
+
+    #[test]
+    fn hears_nothing_in_a_placeholder() {
+        let line = |text: &str| LyricLine {
+            at: 0.0,
+            text: text.to_string(),
+            translation: None,
+            words: Vec::new(),
+        };
+        assert!(!has_words(&[line("此歌曲为没有填词的纯音乐，请您欣赏")]));
+        assert!(!has_words(&[line("作词：K3CIM"), line("编曲：K3CIM")]));
+        assert!(has_words(&[line("作词：林夕"), line("当时桌上有一杯茶")]));
     }
 
     #[test]
