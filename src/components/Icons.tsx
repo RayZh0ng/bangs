@@ -106,3 +106,10 @@ export const CheckIcon = (props: IconProps) => (
     <path d="M20 6 9 17l-5-5" />
   </Stroke>
 );
+
+export const RefreshIcon = (props: IconProps) => (
+  <Stroke {...props}>
+    <path d="M20 7v5h-5" />
+    <path d="M19 12a7 7 0 1 0-1.8 4.7" />
+  </Stroke>
+);

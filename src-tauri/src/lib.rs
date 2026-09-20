@@ -130,6 +130,7 @@ pub fn run() {
             set_hit_rect,
             set_cursor,
             media_command,
+            lyrics::lyrics_refresh,
             dev::open_project,
             clipboard::clipboard_use,
             clipboard::clipboard_open,
